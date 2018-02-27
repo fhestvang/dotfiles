@@ -29,7 +29,7 @@ autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
 " KEYMAPPINGS
 map <C-n> :NERDTreeToggle<CR>
 
-autocmd vimenter * NERDTree
+autocmd vimenter * NERDTree | wincmd p
 autocmd StdinReadPre * let s:std_in=1
 autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
 autocmd StdinReadPre * let s:std_in=1
