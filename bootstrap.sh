@@ -1,3 +1,4 @@
+#!/bin/bash
 ########## Variables
 
 dir=~/dotfiles                    # dotfiles directory
@@ -24,5 +25,3 @@ for file in $files; do
     ln -s $dir/$file ~/$file
 done
 
-. ~/.zshrc
-. ~/.vimrc
