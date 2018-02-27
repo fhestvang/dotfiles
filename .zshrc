@@ -49,9 +49,8 @@ source $ZSH/oh-my-zsh.sh
 #
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
-if command -v tmux>/dev/null; then
-  [[ ! $TERM =~ screen ]] && [ -z $TMUX ] && exec tmux
-fi
+
+[ -z "$TMUX"  ] && { tmux attach || exec tmux new-session;}
 
 # ALIASES
 alias copy="xclip -selection clipboard"
