@@ -13,6 +13,7 @@ Plugin 'scrooloose/nerdtree'
 Plugin 'koron/nyancat-vim'
 Plugin 'bling/vim-airline'
 Plugin 'vim-airline/vim-airline-themes'
+Plugin 'christoomey/vim-tmux-runner'
 call vundle#end()            " requir
 
 
@@ -31,6 +32,7 @@ autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
 
 " KEYMAPPINGS
 map <C-n> :NERDTreeToggle<CR>
+map <C-v> :VtrSendFile<CR>
 autocmd StdinReadPre * let s:std_in=1
 autocmd VimEnter * if argc() == 0 && !exists("s:std_in") | NERDTree | endif
 autocmd StdinReadPre * let s:std_in=1
