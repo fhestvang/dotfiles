@@ -10,7 +10,11 @@ Plugin 'VundleVim/Vundle.vim'
 Plugin 'junegunn/fzf'
 Plugin 'christoomey/vim-tmux-navigator'
 Plugin 'scrooloose/nerdtree'
+Plugin 'koron/nyancat-vim'
+Plugin 'bling/vim-airline'
+Plugin 'vim-airline/vim-airline-themes'
 call vundle#end()            " requir
+
 
 " " Brief help
 " " :PluginList       - lists configured plugins
@@ -19,7 +23,6 @@ call vundle#end()            " requir
 " " :PluginSearch foo - searches for foo; append `!` to refresh local cache
 " " :PluginClean      - confirms removal of unused plugins; append `!` to
 " auto-approve removal
-" "
 autocmd StdinReadPre * let s:std_in=1
 autocmd VimEnter * if argc() == 1 && isdirectory(argv()[0]) && !exists("s:std_in") | exe 'NERDTree' argv()[0] | wincmd p | ene | endif
 autocmd bufenter * if (winnr("$") == 1 && exists("b:NERDTree") && b:NERDTree.isTabTree()) | q | endif
