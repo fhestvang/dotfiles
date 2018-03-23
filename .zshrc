@@ -4,6 +4,7 @@ set noswapfile # no swap files
 #ZSH distribution
 export ZSH=$HOME/.oh-my-zsh
 export TERM="xterm-256color"
+export PATH=/home/frederik/anaconda3/bin:$PATH
 #THEME	
 ZSH_THEME="powerlevel9k/powerlevel9k"
 
@@ -31,11 +32,25 @@ COMPLETION_WAITING_DOTS="true"
 # Add wisely, as too many plugins slow down shell startup.
 plugins=(
   git
+  tmuxinator
 )
 
 source $ZSH/oh-my-zsh.sh
 
+function gitall() {
+    git add .
+    if [ "$1" != "" ] # or better, if [ -n "$1" ]
+    then
+        git commit -m "$1"
+    else
+        git commit -m update
+    fi
+    git push
+}
 
+function mailf() {
+	mailx -s "$1" frederikh@tradingdesk.dk
+}
 
 # Preferred editor for local and remote sessions
 # if [[ -n $SSH_CONNECTION ]]; then
@@ -50,7 +65,9 @@ source $ZSH/oh-my-zsh.sh
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 
-[ -z "$TMUX"  ] && { tmux attach || exec tmux new-session;}
+#[ -z "$TMUX"  ] && { tmux attach || exec tmux new-session;}
 
 # ALIASES
 alias copy="xclip -selection clipboard"
+alias mux="tmuxinator"
+alias lss="ls -Slh"
