@@ -71,3 +71,4 @@ function mailf() {
 alias copy="xclip -selection clipboard"
 alias mux="tmuxinator"
 alias lss="ls -Slh"
+alias pic="streamer -f jpeg -o ~/pic.jpeg"
