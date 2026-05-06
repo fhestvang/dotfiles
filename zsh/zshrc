@@ -1,5 +1,25 @@
 # ~/.zshrc
 
+DOTFILES_ZSH_ROOT="$HOME/.local/opt/zsh-ubuntu"
+if [ -d "$DOTFILES_ZSH_ROOT/usr/share/zsh/functions" ]; then
+  fpath=(
+    "$DOTFILES_ZSH_ROOT/usr/share/zsh/site-functions"
+    "$DOTFILES_ZSH_ROOT/usr/share/zsh/vendor-functions"
+    "$DOTFILES_ZSH_ROOT/usr/share/zsh/vendor-completions"
+    "$DOTFILES_ZSH_ROOT/usr/share/zsh/functions"
+    "$DOTFILES_ZSH_ROOT/usr/share/zsh/functions"/*(/)
+    $fpath
+  )
+fi
+
+if [ -d "$DOTFILES_ZSH_ROOT/usr/lib/$(uname -m)-linux-gnu/zsh/$ZSH_VERSION" ]; then
+  module_path=("$DOTFILES_ZSH_ROOT/usr/lib/$(uname -m)-linux-gnu/zsh/$ZSH_VERSION" $module_path)
+elif [ -d "$DOTFILES_ZSH_ROOT/usr/lib/aarch64-linux-gnu/zsh/$ZSH_VERSION" ]; then
+  module_path=("$DOTFILES_ZSH_ROOT/usr/lib/aarch64-linux-gnu/zsh/$ZSH_VERSION" $module_path)
+elif [ -d "$DOTFILES_ZSH_ROOT/usr/lib/x86_64-linux-gnu/zsh/$ZSH_VERSION" ]; then
+  module_path=("$DOTFILES_ZSH_ROOT/usr/lib/x86_64-linux-gnu/zsh/$ZSH_VERSION" $module_path)
+fi
+
 export HISTFILE="$HOME/.zsh_history"
 export HISTSIZE=10000
 export SAVEHIST=20000

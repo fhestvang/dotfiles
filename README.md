@@ -27,6 +27,19 @@ To switch the login shell after `zsh` is installed:
 ./install.sh --set-zsh
 ```
 
+On machines where `chsh` is unavailable or sudo is not available, enable an
+interactive Bash-to-Zsh handoff:
+
+```sh
+./install.sh --install-packages --auto-zsh
+```
+
+To stay in Bash for one shell:
+
+```sh
+DOTFILES_STAY_IN_BASH=1 bash
+```
+
 ## Managed Files
 
 - `~/.bashrc`

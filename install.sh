@@ -6,6 +6,7 @@ BACKUP_ROOT="${DOTFILES_BACKUP_DIR:-$HOME/.dotfiles-backup}"
 BACKUP_DIR="$BACKUP_ROOT/$(date +%Y%m%d-%H%M%S)"
 INSTALL_PACKAGES=0
 SET_ZSH=0
+AUTO_ZSH=0
 
 usage() {
   cat <<'USAGE'
@@ -14,6 +15,7 @@ Usage: ./install.sh [--install-packages] [--set-zsh]
 Options:
   --install-packages  Install missing tools with apt, Homebrew, or user-local installers.
   --set-zsh           Change the login shell to zsh if zsh is installed.
+  --auto-zsh          Auto-enter zsh from interactive Bash using ~/.dotfiles-auto-zsh.
   -h, --help          Show this help.
 USAGE
 }
@@ -22,6 +24,7 @@ for arg in "$@"; do
   case "$arg" in
     --install-packages) INSTALL_PACKAGES=1 ;;
     --set-zsh) SET_ZSH=1 ;;
+    --auto-zsh) AUTO_ZSH=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $arg" >&2; usage >&2; exit 2 ;;
   esac
@@ -76,6 +79,39 @@ install_starship_user() {
     curl -fsSL https://starship.rs/install.sh | sh -s -- -b "$HOME/.local/bin" -y
   else
     echo "skip: curl is required for user-local starship install"
+  fi
+}
+
+install_zsh_user_apt() {
+  if have zsh; then
+    return
+  fi
+
+  if ! have apt-get || ! have dpkg-deb; then
+    echo "skip: user-local zsh install needs apt-get and dpkg-deb"
+    return
+  fi
+
+  local tmp zsh_root
+  tmp="$(mktemp -d)"
+  zsh_root="$HOME/.local/opt/zsh-ubuntu"
+  mkdir -p "$HOME/.local/bin" "$zsh_root"
+
+  (
+    cd "$tmp"
+    apt-get download zsh zsh-common
+    for deb in ./*.deb; do
+      dpkg-deb -x "$deb" "$zsh_root"
+    done
+  )
+
+  rm -rf "$tmp"
+
+  if [ -x "$zsh_root/bin/zsh" ]; then
+    ln -sfn "$zsh_root/bin/zsh" "$HOME/.local/bin/zsh"
+    echo "installed: user-local zsh -> $HOME/.local/bin/zsh"
+  else
+    echo "skip: user-local zsh package extraction did not produce $zsh_root/bin/zsh"
   fi
 }
 
@@ -140,6 +176,7 @@ install_packages() {
   fi
 
   install_starship_user
+  install_zsh_user_apt
   install_fzf_user
   install_zoxide_user
 }
@@ -167,6 +204,11 @@ if [ "$SET_ZSH" -eq 1 ]; then
   else
     chsh -s "$(command -v zsh)"
   fi
+fi
+
+if [ "$AUTO_ZSH" -eq 1 ]; then
+  touch "$HOME/.dotfiles-auto-zsh"
+  echo "ok: enabled Bash-to-Zsh handoff with $HOME/.dotfiles-auto-zsh"
 fi
 
 echo "done"
