@@ -43,6 +43,7 @@ DOTFILES_STAY_IN_BASH=1 bash
 ## Managed Files
 
 - `~/.bashrc`
+- `~/.bash_profile`
 - `~/.bash_aliases`
 - `~/.zshrc`
 - `~/.zprofile`

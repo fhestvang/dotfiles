@@ -189,6 +189,7 @@ install_zsh_plugins
 install_tmux_plugins
 
 link_file "$DOTFILES_DIR/bash/bashrc" "$HOME/.bashrc"
+link_file "$DOTFILES_DIR/bash/bash_profile" "$HOME/.bash_profile"
 link_file "$DOTFILES_DIR/bash/bash_aliases" "$HOME/.bash_aliases"
 link_file "$DOTFILES_DIR/zsh/zshrc" "$HOME/.zshrc"
 link_file "$DOTFILES_DIR/zsh/zprofile" "$HOME/.zprofile"
