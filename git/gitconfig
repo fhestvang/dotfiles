@@ -1,0 +1,10 @@
+[user]
+	name = Frederik Hye-Hestvang
+	email = frederikhestvang@gmail.com
+[credential "https://gist.github.com"]
+	helper =
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://github.com"]
+	helper =
+	helper = cache --timeout=900
+	helper = !/home/fhestvang/github/fos/infrastructure/openbao-git-credential.sh

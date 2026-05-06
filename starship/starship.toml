@@ -1,0 +1,32 @@
+add_newline = false
+format = "$hostname$time$directory$git_branch$git_status$character"
+
+[hostname]
+ssh_only = false
+format = "[$hostname]($style): "
+style = "bold cyan"
+
+[time]
+disabled = false
+format = "[\\[$time\\]]($style) "
+time_format = "%d/%m/%y | %T"
+style = "bold yellow"
+
+[directory]
+format = "[$path]($style) "
+style = "bold green"
+truncation_length = 4
+truncate_to_repo = false
+
+[git_branch]
+format = "[$symbol$branch]($style) "
+style = "bold blue"
+symbol = "git:"
+
+[git_status]
+format = "[$all_status$ahead_behind]($style) "
+style = "bold red"
+
+[character]
+success_symbol = "[\\$](bold green) "
+error_symbol = "[\\$](bold red) "

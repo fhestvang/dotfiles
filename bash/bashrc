@@ -1,0 +1,44 @@
+# ~/.bashrc
+
+case $- in
+  *i*) ;;
+  *) return ;;
+esac
+
+HISTCONTROL=ignoreboth
+HISTSIZE=10000
+HISTFILESIZE=20000
+shopt -s histappend
+shopt -s checkwinsize
+
+if [ -x /usr/bin/lesspipe ]; then
+  eval "$(SHELL=/bin/sh lesspipe)"
+fi
+
+if [ -x /usr/bin/dircolors ]; then
+  test -r "$HOME/.dircolors" && eval "$(dircolors -b "$HOME/.dircolors")" || eval "$(dircolors -b)"
+  alias ls='ls --color=auto'
+  alias grep='grep --color=auto'
+  alias fgrep='fgrep --color=auto'
+  alias egrep='egrep --color=auto'
+fi
+
+if ! shopt -oq posix; then
+  if [ -f /usr/share/bash-completion/bash_completion ]; then
+    . /usr/share/bash-completion/bash_completion
+  elif [ -f /etc/bash_completion ]; then
+    . /etc/bash_completion
+  fi
+fi
+
+if [ -r "$HOME/github/dotfiles/shell/common.sh" ]; then
+  . "$HOME/github/dotfiles/shell/common.sh"
+fi
+
+if [ -r "$HOME/.bash_aliases" ]; then
+  . "$HOME/.bash_aliases"
+fi
+
+if ! command -v starship >/dev/null 2>&1; then
+  PS1='\[\033[0;36m\]\h:\[\033[0m\] \[\033[0;33m\][\D{%d/%m/%y} | \t]\[\033[0m\] \[\033[0;32m\]\w\[\033[0m\] \$ '
+fi

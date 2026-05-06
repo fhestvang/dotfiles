@@ -1,0 +1,56 @@
+# ~/.zshrc
+
+export HISTFILE="$HOME/.zsh_history"
+export HISTSIZE=10000
+export SAVEHIST=20000
+
+setopt AUTO_CD
+setopt EXTENDED_GLOB
+setopt HIST_IGNORE_ALL_DUPS
+setopt HIST_IGNORE_SPACE
+setopt HIST_REDUCE_BLANKS
+setopt HIST_VERIFY
+setopt INC_APPEND_HISTORY
+setopt SHARE_HISTORY
+
+autoload -Uz compinit
+mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+compinit -d "${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
+
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
+zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+zstyle ':completion:*' verbose yes
+
+bindkey -e
+autoload -Uz up-line-or-beginning-search down-line-or-beginning-search
+zle -N up-line-or-beginning-search
+zle -N down-line-or-beginning-search
+bindkey '^[[A' up-line-or-beginning-search
+bindkey '^[[B' down-line-or-beginning-search
+
+if [ -r "$HOME/github/dotfiles/shell/common.sh" ]; then
+  . "$HOME/github/dotfiles/shell/common.sh"
+fi
+
+ZSH_PLUGIN_DIR="${ZSH_PLUGIN_DIR:-$HOME/.local/share/zsh/plugins}"
+
+if [ -r "$ZSH_PLUGIN_DIR/zsh-autosuggestions/zsh-autosuggestions.zsh" ]; then
+  . "$ZSH_PLUGIN_DIR/zsh-autosuggestions/zsh-autosuggestions.zsh"
+fi
+
+if [ -r "$ZSH_PLUGIN_DIR/fzf-tab/fzf-tab.plugin.zsh" ]; then
+  . "$ZSH_PLUGIN_DIR/fzf-tab/fzf-tab.plugin.zsh"
+fi
+
+if ! command -v starship >/dev/null 2>&1; then
+  autoload -Uz vcs_info
+  zstyle ':vcs_info:git:*' formats '%F{blue}%b%f'
+  precmd() { vcs_info }
+  PROMPT='%F{cyan}%m:%f %F{yellow}[%D{%d/%m/%y} | %*]%f %F{green}%~%f %# '
+  RPROMPT='${vcs_info_msg_0_}'
+fi
+
+if [ -r "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]; then
+  . "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+fi
