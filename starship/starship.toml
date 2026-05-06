@@ -1,21 +1,17 @@
 add_newline = false
-format = "$hostname$time$directory$git_branch$git_status$character"
+format = "$custom$directory$git_branch$git_status$character"
 
-[hostname]
-ssh_only = false
-format = "[$hostname]($style): "
+[custom.machine]
+command = "$HOME/github/dotfiles/bin/prompt-host"
+when = "true"
+format = "[$output]($style) "
 style = "bold cyan"
-
-[time]
-disabled = false
-format = "[\\[$time\\]]($style) "
-time_format = "%d/%m/%y | %T"
-style = "bold yellow"
 
 [directory]
 format = "[$path]($style) "
 style = "bold green"
-truncation_length = 4
+truncation_length = 3
+truncation_symbol = "../"
 truncate_to_repo = false
 
 [git_branch]

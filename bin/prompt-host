@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+host="${HOSTNAME:-$(hostname 2>/dev/null || true)}"
+host="${host%%.*}"
+
+case "$host" in
+  DESKTOP-T9M5U7N)
+    printf 'laptop'
+    ;;
+  spark|spark-*)
+    printf 'spark'
+    ;;
+  '')
+    printf 'local'
+    ;;
+  *)
+    printf '%s' "$host"
+    ;;
+esac

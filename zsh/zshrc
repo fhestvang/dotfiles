@@ -50,7 +50,8 @@ if ! command -v starship >/dev/null 2>&1; then
   autoload -Uz vcs_info
   zstyle ':vcs_info:git:*' formats '%F{blue}%b%f'
   precmd() { vcs_info }
-  PROMPT='%F{cyan}%m:%f %F{yellow}[%D{%d/%m/%y} | %*]%f %F{green}%~%f %# '
+  DOTFILES_PROMPT_HOST="$("$HOME/github/dotfiles/bin/prompt-host" 2>/dev/null || hostname -s)"
+  PROMPT='%F{cyan}${DOTFILES_PROMPT_HOST}%f %F{green}%~%f %# '
   RPROMPT='${vcs_info_msg_0_}'
 fi
 
