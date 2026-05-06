@@ -7,7 +7,7 @@ if [ -d "$DOTFILES_ZSH_ROOT/usr/share/zsh/functions" ]; then
     "$DOTFILES_ZSH_ROOT/usr/share/zsh/vendor-functions"
     "$DOTFILES_ZSH_ROOT/usr/share/zsh/vendor-completions"
     "$DOTFILES_ZSH_ROOT/usr/share/zsh/functions"
-    "$DOTFILES_ZSH_ROOT/usr/share/zsh/functions"/*(/)
+    "$DOTFILES_ZSH_ROOT/usr/share/zsh/functions"/**/*(/N)
     $fpath
   )
 fi
