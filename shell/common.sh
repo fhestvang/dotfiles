@@ -1,5 +1,9 @@
 # Shared interactive shell configuration for Bash and Zsh.
 
+if [ -r "$HOME/github/dotfiles/shell/wslg-env.sh" ]; then
+  . "$HOME/github/dotfiles/shell/wslg-env.sh"
+fi
+
 dotfiles_path_prepend() {
   [ -d "$1" ] || return
   case ":$PATH:" in
@@ -26,8 +30,11 @@ fi
 
 export NVM_DIR="$HOME/.nvm"
 if [ -s "$NVM_DIR/nvm.sh" ]; then
-  . "$NVM_DIR/nvm.sh"
-  nvm use default >/dev/null 2>&1 || true
+  nvm() {
+    unset -f nvm
+    . "$NVM_DIR/nvm.sh"
+    nvm "$@"
+  }
 fi
 
 if [ -n "${BASH_VERSION:-}" ] && [ -s "$NVM_DIR/bash_completion" ]; then
@@ -79,22 +86,28 @@ if [ -x "$HOME/github/fos/infrastructure/openbao-github-cli-shell-env.sh" ]; the
 fi
 
 hermes() {
-  local quoted="" arg
-  for arg in "$@"; do quoted+=" $(printf '%q' "$arg")"; done
-  if [ -t 0 ] && [ -t 1 ]; then
-    ssh -t spark "docker exec -it --user hermes hermes /opt/hermes/.venv/bin/hermes$quoted"
-  else
-    ssh spark "docker exec --user hermes hermes /opt/hermes/.venv/bin/hermes$quoted"
-  fi
+  "$HOME/.local/bin/hermes" "$@"
 }
 
-gt() {
+agent-plan() {
+  command agent-plan "$@"
+}
+
+agent-fast() {
+  command agent-fast "$@"
+}
+
+agent-private() {
+  command agent-private "$@"
+}
+
+gc() {
   local quoted="" arg
   for arg in "$@"; do quoted+=" $(printf '%q' "$arg")"; done
   if [ -t 0 ] && [ -t 1 ]; then
-    ssh -t spark "export PATH=\$HOME/opt/go/bin:\$HOME/go/bin:\$HOME/.local/bin:\$HOME/.cargo/bin:\$PATH; cd ~/gt 2>/dev/null; gt$quoted"
+    ssh -o ClearAllForwardings=yes -t spark "export PATH=\$HOME/opt/go/bin:\$HOME/go/bin:\$HOME/.local/bin:\$HOME/.cargo/bin:\$PATH; cd ~/gc 2>/dev/null || cd ~; gc$quoted"
   else
-    ssh spark "export PATH=\$HOME/opt/go/bin:\$HOME/go/bin:\$HOME/.local/bin:\$HOME/.cargo/bin:\$PATH; cd ~/gt 2>/dev/null; gt$quoted"
+    ssh -o ClearAllForwardings=yes spark "export PATH=\$HOME/opt/go/bin:\$HOME/go/bin:\$HOME/.local/bin:\$HOME/.cargo/bin:\$PATH; cd ~/gc 2>/dev/null || cd ~; gc$quoted"
   fi
 }
 
@@ -102,9 +115,9 @@ bd() {
   local quoted="" arg
   for arg in "$@"; do quoted+=" $(printf '%q' "$arg")"; done
   if [ -t 0 ] && [ -t 1 ]; then
-    ssh -t spark "export PATH=\$HOME/.local/bin:\$PATH; cd ~/gt 2>/dev/null; bd$quoted"
+    ssh -o ClearAllForwardings=yes -t spark "export PATH=\$HOME/.local/bin:\$PATH; bd$quoted"
   else
-    ssh spark "export PATH=\$HOME/.local/bin:\$PATH; cd ~/gt 2>/dev/null; bd$quoted"
+    ssh -o ClearAllForwardings=yes spark "export PATH=\$HOME/.local/bin:\$PATH; bd$quoted"
   fi
 }
 

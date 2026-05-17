@@ -5,24 +5,35 @@ format = "$custom$directory$git_branch$git_status$character"
 command = "$HOME/github/dotfiles/bin/prompt-host"
 when = "true"
 format = "[$output]($style) "
-style = "bold cyan"
+style = "245"
 
 [directory]
 format = "[$path]($style) "
-style = "bold green"
+style = "248"
 truncation_length = 3
 truncation_symbol = "../"
 truncate_to_repo = false
 
 [git_branch]
-format = "[$symbol$branch]($style) "
-style = "bold blue"
-symbol = "git:"
+format = "[$branch]($style) "
+style = "242"
+symbol = ""
 
 [git_status]
-format = "[$all_status$ahead_behind]($style) "
-style = "bold red"
+format = "[$all_status]($style)"
+style = "242"
+modified = "•"
+untracked = "?"
+staged = "+"
+conflicted = "!"
+ahead = ""
+behind = ""
+diverged = ""
+up_to_date = ""
+renamed = ""
+deleted = ""
+stashed = ""
 
 [character]
-success_symbol = "[\\$](bold green) "
-error_symbol = "[\\$](bold red) "
+success_symbol = "[\\$](245) "
+error_symbol = "[\\$](red) "
