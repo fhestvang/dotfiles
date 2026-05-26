@@ -93,13 +93,15 @@ ts() {
 tsp() {
   local remote_command ssh_command
 
-  remote_command='export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; export TERM=xterm-256color; exec tmux -2 new-session -A -s main \; choose-tree -Zw'
+  remote_command='export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; export TERM=xterm-256color; tmux -2 has-session -t main 2>/dev/null || tmux -2 new-session -d -s main; tmux -2 set-hook -g client-attached "set-hook -gu client-attached; choose-tree -Zw"; exec tmux -2 attach-session -t main'
 
   if dotfiles_is_spark; then
     if [ -n "${TMUX:-}" ]; then
       tmux choose-tree -Zw
     else
-      tmux new-session -A -s main \; choose-tree -Zw
+      tmux has-session -t main 2>/dev/null || tmux new-session -d -s main
+      tmux set-hook -g client-attached 'set-hook -gu client-attached; choose-tree -Zw'
+      exec tmux -2 attach-session -t main
     fi
   elif [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
     ssh_command="ssh -q -tt -o ClearAllForwardings=yes spark $(printf '%q' "$remote_command")"
