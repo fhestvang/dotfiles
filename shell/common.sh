@@ -42,24 +42,24 @@ dotfiles_path_prepend "$HOME/.local/share/fzf/bin"
 export PATH
 
 dotfiles_refresh_linux_path() {
-  local old_ifs dir filtered
+  local rest dir filtered
 
-  old_ifs="$IFS"
-  IFS=:
+  rest="$PATH:"
   filtered=""
-  for dir in $PATH; do
+  while [ -n "$rest" ]; do
+    dir="${rest%%:*}"
+    rest="${rest#*:}"
     case "$dir" in
       /mnt/[a-zA-Z]/*) continue ;;
     esac
     filtered="${filtered:+$filtered:}$dir"
   done
-  IFS="$old_ifs"
 
   DOTFILES_LINUX_PATH="$filtered"
 }
 
 dotfiles_have_linux() {
-  local old_ifs dir candidate
+  local rest dir candidate
 
   if [ -z "${DOTFILES_LINUX_PATH:-}" ]; then
     dotfiles_refresh_linux_path
@@ -69,17 +69,16 @@ dotfiles_have_linux() {
     */*) [ -x "$1" ] && [ ! -d "$1" ]; return ;;
   esac
 
-  old_ifs="$IFS"
-  IFS=:
-  for dir in $DOTFILES_LINUX_PATH; do
+  rest="$DOTFILES_LINUX_PATH:"
+  while [ -n "$rest" ]; do
+    dir="${rest%%:*}"
+    rest="${rest#*:}"
     [ -n "$dir" ] || dir=.
     candidate="$dir/$1"
     if [ -x "$candidate" ] && [ ! -d "$candidate" ]; then
-      IFS="$old_ifs"
       return 0
     fi
   done
-  IFS="$old_ifs"
   return 1
 }
 
