@@ -65,6 +65,15 @@ if [[ -o interactive ]]; then
   bindkey -M viins '^[[B' down-line-or-beginning-search
   bindkey -M vicmd '^[[A' up-line-or-beginning-search
   bindkey -M vicmd '^[[B' down-line-or-beginning-search
+
+  bindkey -M viins '^?' backward-delete-char
+  bindkey -M viins '^H' backward-delete-char
+  bindkey -M vicmd '^?' backward-delete-char
+  bindkey -M vicmd '^H' backward-delete-char
+  bindkey -M viins '^W' backward-kill-word
+  bindkey -M vicmd '^W' backward-kill-word
+  bindkey -M viins '^U' kill-whole-line
+  bindkey -M vicmd '^U' kill-whole-line
 fi
 
 if [ -r "$HOME/github/dotfiles/shell/common.sh" ]; then
