@@ -338,7 +338,7 @@ install_stow_packages() {
     prepare_stow_target "$target"
   done
 
-  stow -d "$DOTFILES_DIR" -t "$HOME" --no-folding -R "${STOW_PACKAGES[@]}"
+  stow -d "$DOTFILES_DIR" -t "$HOME" --no-folding "${STOW_PACKAGES[@]}"
 }
 
 if [ "$INSTALL_PACKAGES" -eq 1 ]; then
