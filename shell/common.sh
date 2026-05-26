@@ -70,6 +70,18 @@ spark() {
   fi
 }
 
+ts() {
+  if dotfiles_is_spark; then
+    tmux new-session -A -s main
+  else
+    ssh -t spark 'export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; exec tmux new-session -A -s main'
+  fi
+}
+
+tsp() {
+  ts "$@"
+}
+
 laptop() {
   if dotfiles_is_spark; then
     if [ -n "${TMUX:-}" ] && [ -n "${SSH_CONNECTION:-}" ]; then
