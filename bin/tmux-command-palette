@@ -5,6 +5,338 @@ fzf_bin="${FZF_BIN:-fzf}"
 open_on_laptop="$HOME/github/dotfiles/bin/open-on-laptop"
 markdown_preview="$HOME/github/dotfiles/bin/markdown-preview-browser"
 url_picker="$HOME/.tmux/plugins/tmux-fzf-url/fzf-url.sh"
+palette_file="${TMUX_COMMAND_PALETTE_FILE:-$HOME/.config/tmux/command-palette.tsv}"
+target_pane="${TMUX_PALETTE_PANE:-${TMUX_PANE:-}}"
+target_window="${TMUX_PALETTE_WINDOW:-}"
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+emit() {
+  local id="$1"
+  local title="$2"
+  local shortcut="$3"
+  local description="$4"
+  local command="${5:-}"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$id" "$title" "$shortcut" "$description" "$command"
+}
+
+emit_builtins() {
+  emit tmux.rename-window "Tmux: rename current tab/window" "M-a ," "Set the visible tmux tab/window name. Turns off automatic rename for this window." ""
+  emit tmux.rename-pane "Tmux: rename current pane" "M-a T" "Set the pane title shown in the pane border." ""
+  emit tmux.new-window "Tmux: new tab/window here" "M-a c" "Open a new tmux window in the current directory." ""
+  emit tmux.split-right "Tmux: split pane right" "M-a |" "Split the current pane horizontally, keeping the current directory." ""
+  emit tmux.split-down "Tmux: split pane down" "M-a -" "Split the current pane vertically, keeping the current directory." ""
+  emit tmux.choose-tree "Tmux: choose sessions/windows" "M-a s/w" "Open tmux's built-in session/window picker." ""
+  emit tmux.search-keys "Tmux: search key bindings" "M-a ?" "Fuzzy-search active tmux key bindings and descriptions." ""
+  emit tmux.command-prompt "Tmux: run tmux command" "M-a :" "Prompt for and run an arbitrary tmux command." ""
+  emit tmux.reload-config "Tmux: reload config" "" "Source ~/.tmux.conf and show a reload confirmation." ""
+  emit tmux.show-messages "Tmux: show messages" "M-a ~" "Open tmux server/client messages." ""
+  emit markdown.preview "Markdown: preview in Chrome" "" "Render selected Markdown as polished HTML and open it in laptop Chrome." ""
+  emit markdown.read "Markdown: read in tmux" "M-a M" "Read selected Markdown in the terminal with glow." ""
+  emit url.open "URL: open from scrollback" "M-u" "Pick a URL from tmux history and open it in laptop Chrome." ""
+  emit files.browse "Files: browse here" "" "Search files below the current directory with previews, then open in EDITOR." ""
+  emit dir.tree "Directory: eza tree" "" "Show a nice eza tree for this directory." ""
+  emit git.diff "Git: diff" "M-a g" "Show the current git diff in a full tmux popup." ""
+  emit palette.edit "Palette: edit custom commands" "" "Edit ~/.config/tmux/command-palette.tsv to add personal palette commands." ""
+  emit help.workflow "Help: workflow cheatsheet" "" "Show the small cheatsheet for this setup." ""
+}
+
+emit_custom() {
+  [ -f "$palette_file" ] || return 0
+
+  local title shortcut description command
+  while IFS=$'\t' read -r title shortcut description command _; do
+    case "${title:-}" in
+      ""|\#*) continue ;;
+    esac
+    emit custom "$title" "${shortcut:-}" "${description:-Custom command from $palette_file}" "${command:-}"
+  done <"$palette_file"
+}
+
+emit_tmux_bindings() {
+  python3 - <<'PY'
+import shlex
+import subprocess
+
+
+def tmux(*args):
+    return subprocess.run(
+        ["tmux", *args],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    ).stdout
+
+
+def clean(value):
+    return value.replace("\t", " ").replace("\n", " ").strip()
+
+
+def command_label(command):
+    words = command.split()
+    if not words:
+        return "run command"
+    head = words[0]
+    labels = {
+        "break-pane": "break pane",
+        "choose-buffer": "choose buffer",
+        "choose-client": "choose client",
+        "choose-tree": "choose session/window",
+        "clock-mode": "clock mode",
+        "command-prompt": "prompt for command/input",
+        "confirm-before": "confirm action",
+        "copy-mode": "copy mode",
+        "customize-mode": "customize tmux",
+        "detach-client": "detach client",
+        "display-message": "display message",
+        "display-panes": "display pane numbers",
+        "display-popup": "open popup",
+        "find-window": "find window",
+        "last-pane": "last pane",
+        "list-buffers": "list buffers",
+        "list-keys": "list keys",
+        "new-window": "new tab/window",
+        "next-layout": "next layout",
+        "next-window": "next tab/window",
+        "paste-buffer": "paste buffer",
+        "previous-window": "previous tab/window",
+        "refresh-client": "refresh client",
+        "rename-session": "rename session",
+        "rename-window": "rename tab/window",
+        "resize-pane": "resize pane",
+        "rotate-window": "rotate panes",
+        "run-shell": "run shell command",
+        "select-layout": "select layout",
+        "select-pane": "select pane",
+        "select-window": "select tab/window",
+        "send-prefix": "send prefix",
+        "show-messages": "show messages",
+        "split-window": "split pane",
+        "suspend-client": "suspend client",
+        "swap-pane": "swap pane",
+        "switch-client": "switch client/session",
+    }
+    return labels.get(head, head.replace("-", " "))
+
+
+def parse_binding(line, fallback_table):
+    try:
+        tokens = shlex.split(line)
+    except ValueError:
+        return None
+    if not tokens or tokens[0] != "bind-key":
+        return None
+
+    table = fallback_table
+    i = 1
+    while i < len(tokens):
+        token = tokens[i]
+        if token == "-T" and i + 1 < len(tokens):
+            table = tokens[i + 1]
+            i += 2
+        elif token in {"-r"}:
+            i += 1
+        elif token == "-N" and i + 1 < len(tokens):
+            i += 2
+        elif token == "-n":
+            i += 1
+        else:
+            key = token
+            command = tokens[i + 1 :]
+            return table, key, command
+    return None
+
+
+prefix = tmux("show-option", "-gv", "prefix").strip() or "prefix"
+seen = set()
+
+for table in ("root", "prefix"):
+    for line in tmux("list-keys", "-T", table).splitlines():
+        parsed = parse_binding(line, table)
+        if not parsed:
+            continue
+        table_name, key, command_tokens = parsed
+        if not command_tokens:
+            continue
+        if any(mouse_word in key for mouse_word in ("Mouse", "Wheel", "Click", "Drag")):
+            continue
+
+        command = shlex.join(command_tokens)
+        if "tmux-command-palette" in command:
+            continue
+
+        shortcut = key if table_name == "root" else f"{prefix} {key}"
+        record_key = (shortcut, command)
+        if record_key in seen:
+            continue
+        seen.add(record_key)
+
+        label = command_label(command)
+        title = f"Tmux key: {shortcut} -> {label}"
+        description = f"Active tmux {table_name} binding. Runs: {command}"
+        print("\t".join([
+            "tmux.binding",
+            clean(title),
+            clean(shortcut),
+            clean(description),
+            clean(command),
+        ]))
+PY
+}
+
+script_description() {
+  local path="$1"
+  local line
+
+  while IFS= read -r line; do
+    case "$line" in
+      '#!'*) continue ;;
+      '# '*)
+        printf '%s' "${line#\# }"
+        return
+        ;;
+      'usage:'*|'Usage:'*)
+        printf '%s' "$line"
+        return
+        ;;
+      '') continue ;;
+      *) break ;;
+    esac
+  done <"$path"
+
+  printf 'Executable helper: %s' "$path"
+}
+
+emit_scripts() {
+  local path base description source
+
+  for path in "$HOME/github/dotfiles/bin"/* "$HOME/bin"/*; do
+    [ -f "$path" ] || continue
+    [ -x "$path" ] || continue
+    [ "$path" != "$HOME/github/dotfiles/bin/tmux-command-palette" ] || continue
+
+    base="$(basename "$path")"
+    case "$path" in
+      "$HOME/github/dotfiles/bin/"*) source="dotfiles/bin" ;;
+      "$HOME/bin/"*) source="~/bin" ;;
+      *) source="$(dirname "$path")" ;;
+    esac
+    description="$(script_description "$path")"
+    emit script "Script: $base" "$source" "$description" "$path"
+  done
+}
+
+emit_shell_shortcuts() {
+  python3 - "$HOME/github/dotfiles/shell/common.sh" <<'PY'
+import ast
+import pathlib
+import re
+import sys
+
+path = pathlib.Path(sys.argv[1])
+try:
+    text = path.read_text()
+except OSError:
+    raise SystemExit(0)
+
+skip_functions = {"dotfiles_is_spark", "dotfiles_spark_command", "dotfiles_path_prepend", "nvm"}
+seen = set()
+
+
+def clean(value):
+    return value.replace("\t", " ").replace("\n", " ").strip()
+
+
+def emit(kind, name, description, command):
+    key = (kind, name)
+    if key in seen:
+        return
+    seen.add(key)
+    title = f"Shell {kind}: {name}"
+    print("\t".join([
+        f"shell.{kind}",
+        clean(title),
+        clean(name),
+        clean(description),
+        clean(command),
+    ]))
+
+
+for match in re.finditer(r"(?m)^\s*alias\s+([^=\s]+)=(.+)$", text):
+    name = match.group(1)
+    raw = match.group(2).strip()
+    try:
+        expansion = ast.literal_eval(raw)
+    except Exception:
+        expansion = raw.strip("'\"")
+    emit("alias", name, f"Alias from shell/common.sh: {expansion}", name)
+
+for match in re.finditer(r"(?m)^([A-Za-z_][A-Za-z0-9_-]*)\(\)\s*\{", text):
+    name = match.group(1)
+    if name.startswith("__") or name in skip_functions:
+        continue
+    emit("function", name, "Function from shell/common.sh.", name)
+PY
+}
+
+emit_all() {
+  emit_builtins
+  emit_custom
+  emit_tmux_bindings
+  emit_scripts
+  emit_shell_shortcuts
+}
+
+tmux_display() {
+  if [ -n "$target_window" ]; then
+    tmux display-message -p -t "$target_window" "$1"
+  else
+    tmux display-message -p "$1"
+  fi
+}
+
+tmux_rename_window() {
+  if [ -n "$target_window" ]; then
+    tmux setw -t "$target_window" automatic-rename off
+    tmux rename-window -t "$target_window" "$1"
+  else
+    tmux setw automatic-rename off
+    tmux rename-window "$1"
+  fi
+}
+
+tmux_set_pane_title() {
+  if [ -n "$target_pane" ]; then
+    tmux select-pane -t "$target_pane" -T "$1"
+  else
+    tmux select-pane -T "$1"
+  fi
+}
+
+tmux_split() {
+  local direction="$1"
+  local args=("$direction" -c "$PWD")
+  if [ -n "$target_pane" ]; then
+    args+=(-t "$target_pane")
+  fi
+  tmux split-window "${args[@]}"
+}
+
+prompt_value() {
+  local prompt="$1"
+  local initial="${2:-}"
+  local value
+
+  if [ -n "$initial" ]; then
+    read -r -e -i "$initial" -p "$prompt" value
+  else
+    read -r -e -p "$prompt" value
+  fi
+  printf '%s' "$value"
+}
 
 pick_markdown() {
   find . -type f \( -iname '*.md' -o -iname '*.markdown' \) 2>/dev/null |
@@ -22,78 +354,184 @@ pick_file() {
       --preview-window='right:62%:wrap'
 }
 
+edit_palette_file() {
+  mkdir -p "$(dirname "$palette_file")"
+  if [ ! -f "$palette_file" ]; then
+    {
+      printf '# title\tshortcut\tdescription\tcommand\n'
+      printf '# Example: Git: status\t\tShow concise git status\tgit status --short --branch\n'
+    } >"$palette_file"
+  fi
+  exec "${EDITOR:-vim}" "$palette_file"
+}
+
 show_help() {
   cat <<'EOF' | less -R
 Command palette
 
 Alt-p      Open this palette
 Alt-u      Pick URL from tmux scrollback and open it in Chrome on the laptop
-prefix u   Same URL picker
-prefix M   Pick Markdown and read it in tmux with glow
+M-a ,      Rename current tmux tab/window directly
+M-a T      Rename current pane directly
+M-a ?      Show tmux key bindings
 
-Useful shell commands
+Custom commands
 
-l          Detailed eza listing with icons and git state
-lt         eza tree, two levels deep
-glow FILE  Read Markdown in the terminal
-open-on-laptop URL
-           Open URL in Chrome on the laptop
+Add personal commands in:
+  ~/.config/tmux/command-palette.tsv
+
+Format:
+  title<TAB>shortcut<TAB>description<TAB>shell command
 
 EOF
 }
 
+run_script() {
+  local path="$1"
+  local args
+
+  [ -n "$path" ] || exit 0
+  args="$(prompt_value "Args for $(basename "$path"): ")"
+  if [ -n "$args" ]; then
+    exec bash -lc "exec $(printf '%q' "$path") $args"
+  else
+    exec "$path" </dev/null
+  fi
+}
+
+run_shell_shortcut() {
+  local name="$1"
+  local args shell_line
+
+  [ -n "$name" ] || exit 0
+  args="$(prompt_value "Args for $name: ")"
+  shell_line=$'if [ "${TERM:-dumb}" = "dumb" ]; then export TERM=xterm-256color; fi\nshopt -s expand_aliases\nsource "$HOME/github/dotfiles/shell/common.sh"\n'
+  if [ -n "$args" ]; then
+    shell_line+="$name $args"
+  else
+    shell_line+="$name"
+  fi
+  exec bash -lc "$shell_line"
+}
+
+run_tmux_binding() {
+  local command="$1"
+
+  [ -n "$command" ] || exit 0
+  exec bash -lc "exec tmux $command"
+}
+
+run_action() {
+  local id="$1"
+  local command="$2"
+  local value file
+
+  case "$id" in
+    custom)
+      [ -n "$command" ] || exit 0
+      exec bash -lc "$command"
+      ;;
+    script)
+      run_script "$command"
+      ;;
+    shell.alias|shell.function)
+      run_shell_shortcut "$command"
+      ;;
+    tmux.binding)
+      run_tmux_binding "$command"
+      ;;
+    tmux.rename-window)
+      value="$(prompt_value 'Tab name: ')"
+      [ -n "$value" ] && tmux_rename_window "$value"
+      ;;
+    tmux.rename-pane)
+      value="$(prompt_value 'Pane title: ' "$(tmux display-message -p -t "${target_pane:-}" '#T' 2>/dev/null || true)")"
+      [ -n "$value" ] && tmux_set_pane_title "$value"
+      ;;
+    tmux.new-window)
+      tmux new-window -c "$PWD"
+      ;;
+    tmux.split-right)
+      tmux_split -h
+      ;;
+    tmux.split-down)
+      tmux_split -v
+      ;;
+    tmux.choose-tree)
+      tmux choose-tree -Zs
+      ;;
+    tmux.search-keys)
+      tmux list-keys -N |
+        "$fzf_bin" \
+          --prompt='Tmux keys > ' \
+          --preview='printf "%s\n" {}' \
+          --preview-window='down:3:wrap' >/dev/null
+      ;;
+    tmux.command-prompt)
+      value="$(prompt_value 'tmux command: ')"
+      [ -n "$value" ] && tmux $value
+      ;;
+    tmux.reload-config)
+      tmux source-file "$HOME/.tmux.conf"
+      tmux display-message 'tmux config reloaded'
+      ;;
+    tmux.show-messages)
+      tmux show-messages | less -R
+      ;;
+    markdown.preview)
+      file="$(pick_markdown)" || exit 0
+      "$markdown_preview" "$file"
+      ;;
+    markdown.read)
+      file="$(pick_markdown)" || exit 0
+      exec glow --pager "$file"
+      ;;
+    url.open)
+      tmux run-shell -b "$url_picker 2000 $open_on_laptop '' '' ''"
+      ;;
+    files.browse)
+      file="$(pick_file)" || exit 0
+      exec "${EDITOR:-vim}" "$file"
+      ;;
+    dir.tree)
+      exec sh -c 'eza --tree --level=3 --long --icons --git --group-directories-first -a | less -R'
+      ;;
+    git.diff)
+      exec sh -c 'git diff --color=always | delta --paging=always --line-numbers --navigate'
+      ;;
+    palette.edit)
+      edit_palette_file
+      ;;
+    help.workflow)
+      show_help
+      ;;
+  esac
+}
+
+if [ "${TMUX_COMMAND_PALETTE_DUMP:-}" = "1" ]; then
+  emit_all
+  exit 0
+fi
+
+if ! have "$fzf_bin"; then
+  printf 'tmux-command-palette: fzf not found\n' >&2
+  exit 1
+fi
+
+set +o pipefail
 choice="$(
-  cat <<'EOF' |
-Markdown: preview in Chrome	Render selected Markdown as polished HTML and open it in laptop Chrome.
-Markdown: read in tmux	Read selected Markdown in the terminal with glow.
-URL: open from scrollback	Pick a URL from tmux history and open it in laptop Chrome.
-Files: browse here	Search files with fzf and eza/text previews.
-Directory: eza tree	Show a nice eza tree for this directory.
-Git: diff	Show the current git diff in a full tmux popup.
-Tmux: search key bindings	Search active tmux key bindings.
-Tmux: reload config	Reload ~/.tmux.conf.
-Help: workflow cheatsheet	Show the small cheatsheet for this setup.
-EOF
-  "$fzf_bin" \
-    --prompt='Command > ' \
-    --delimiter=$'\t' \
-    --with-nth=1 \
-    --preview='printf "%s\n" {2}' \
-    --preview-window='down:3:wrap'
+  emit_all |
+    "$fzf_bin" \
+      --prompt='Command > ' \
+      --delimiter=$'\t' \
+      --nth='2,3,4,5' \
+      --with-nth='2,3' \
+      --preview='printf "%s\n\nShortcut: %s\n\n%s\n\n%s\n" {2} {3} {4} {5}' \
+      --preview-window='down:7:wrap'
 )"
+choice_status=$?
+set -o pipefail
+[ "$choice_status" -eq 0 ] || exit 0
 
-action="${choice%%$'\t'*}"
-
-case "$action" in
-  'Markdown: preview in Chrome')
-    file="$(pick_markdown)" || exit 0
-    "$markdown_preview" "$file"
-    ;;
-  'Markdown: read in tmux')
-    file="$(pick_markdown)" || exit 0
-    exec glow --pager "$file"
-    ;;
-  'URL: open from scrollback')
-    tmux run-shell -b "$url_picker 2000 $open_on_laptop '' '' ''"
-    ;;
-  'Files: browse here')
-    file="$(pick_file)" || exit 0
-    exec "${EDITOR:-vim}" "$file"
-    ;;
-  'Directory: eza tree')
-    exec sh -c 'eza --tree --level=3 --long --icons --git --group-directories-first -a | less -R'
-    ;;
-  'Git: diff')
-    exec sh -c 'git diff --color=always | delta --paging=always --line-numbers --navigate'
-    ;;
-  'Tmux: search key bindings')
-    tmux list-keys | "$fzf_bin" --prompt='Tmux keys > ' --preview='printf "%s\n" {}' --preview-window='down:3:wrap' >/dev/null
-    ;;
-  'Tmux: reload config')
-    tmux source-file "$HOME/.tmux.conf"
-    tmux display-message 'tmux config reloaded'
-    ;;
-  'Help: workflow cheatsheet')
-    show_help
-    ;;
-esac
+IFS=$'\t' read -r id title shortcut description command <<<"$choice"
+run_action "$id" "$command"

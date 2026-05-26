@@ -50,6 +50,11 @@ config.cursor_blink_rate = 0
 config.text_blink_rate = 0
 config.text_blink_rate_rapid = 0
 
+config.command_palette_bg_color = '#11111b'
+config.command_palette_fg_color = '#cdd6f4'
+config.command_palette_font_size = 12.0
+config.command_palette_rows = 12
+
 config.default_prog = wsl_command_args('zsh', '-l')
 
 config.launch_menu = {
