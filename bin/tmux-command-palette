@@ -23,6 +23,7 @@ emit() {
 }
 
 emit_builtins() {
+  emit tmux.rename-session "Tmux: rename current session" "M-a $" "Set the visible tmux session name." ""
   emit tmux.rename-window "Tmux: rename current tab/window" "M-a ," "Set the visible tmux tab/window name. Turns off automatic rename for this window." ""
   emit tmux.rename-pane "Tmux: rename current pane" "M-a T" "Set the pane title shown in the pane border." ""
   emit tmux.new-window "Tmux: new tab/window here" "M-a c" "Open a new tmux window in the current directory." ""
@@ -167,6 +168,12 @@ for table in ("root", "prefix"):
         command = shlex.join(command_tokens)
         if "tmux-command-palette" in command:
             continue
+        if (
+            "rename-session" in command
+            or "rename-window" in command
+            or "select-pane -T" in command
+        ):
+            continue
 
         shortcut = key if table_name == "root" else f"{prefix} {key}"
         record_key = (shortcut, command)
@@ -308,6 +315,10 @@ tmux_rename_window() {
   fi
 }
 
+tmux_rename_session() {
+  tmux rename-session "$1"
+}
+
 tmux_set_pane_title() {
   if [ -n "$target_pane" ]; then
     tmux select-pane -t "$target_pane" -T "$1"
@@ -440,6 +451,10 @@ run_action() {
     tmux.binding)
       run_tmux_binding "$command"
       ;;
+    tmux.rename-session)
+      value="$(prompt_value 'Session name: ' "$(tmux display-message -p '#S' 2>/dev/null || true)")"
+      [ -n "$value" ] && tmux_rename_session "$value"
+      ;;
     tmux.rename-window)
       value="$(prompt_value 'Tab name: ')"
       [ -n "$value" ] && tmux_rename_window "$value"
@@ -524,8 +539,8 @@ choice="$(
     "$fzf_bin" \
       --prompt='Command > ' \
       --delimiter=$'\t' \
-      --nth='2,3,4,5' \
-      --with-nth='2,3' \
+      --nth='1..' \
+      --with-nth='2,3,4' \
       --preview='printf "%s\n\nShortcut: %s\n\n%s\n\n%s\n" {2} {3} {4} {5}' \
       --preview-window='down:7:wrap'
 )"

@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+opener="${TMUX_OPEN_MOUSE_URL_OPENER:-$HOME/github/dotfiles/bin/open-on-laptop}"
+
+notify() {
+  local message="$1"
+  if [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
+    tmux display-message "$message"
+  else
+    printf '%s\n' "$message" >&2
+  fi
+}
+
+trim_url() {
+  local url="$1"
+  local char
+
+  while [ -n "$url" ]; do
+    char="${url:0:1}"
+    case "$char" in
+      [[:space:]]|"'"|'"'|'`'|"("|"<"|"[") url="${url:1}" ;;
+      *) break ;;
+    esac
+  done
+
+  while [ -n "$url" ]; do
+    char="${url: -1}"
+    case "$char" in
+      [[:space:]]|"'"|'"'|'`'|")"|"]"|"}"|">"|"."|","|";"|":"|"!"|"?") url="${url%?}" ;;
+      *) break ;;
+    esac
+  done
+
+  printf '%s\n' "$url"
+}
+
+extract_url() {
+  local text="$1"
+  local match
+  local url_re='https?://[^[:space:]"<>]+'
+
+  if [[ "$text" =~ $url_re ]]; then
+    match="${BASH_REMATCH[0]}"
+    trim_url "$match"
+    return 0
+  fi
+
+  return 1
+}
+
+for candidate in "$@"; do
+  [ -n "${candidate//[[:space:]]/}" ] || continue
+
+  if url="$(extract_url "$candidate")" && [[ "$url" =~ ^https?:// ]]; then
+    "$opener" "$url"
+    notify "Opened $url"
+    exit 0
+  fi
+done
+
+notify "No URL under mouse"
+exit 1
