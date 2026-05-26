@@ -37,3 +37,7 @@ stashed = ""
 [character]
 success_symbol = "[\\$](245) "
 error_symbol = "[\\$](red) "
+vimcmd_symbol = "[\\$](green) "
+vimcmd_replace_one_symbol = "[\\$](red) "
+vimcmd_replace_symbol = "[\\$](red) "
+vimcmd_visual_symbol = "[\\$](yellow) "
