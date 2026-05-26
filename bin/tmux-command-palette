@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fzf_bin="${FZF_BIN:-fzf}"
+open_on_laptop="$HOME/github/dotfiles/bin/open-on-laptop"
+markdown_preview="$HOME/github/dotfiles/bin/markdown-preview-browser"
+url_picker="$HOME/.tmux/plugins/tmux-fzf-url/fzf-url.sh"
+
+pick_markdown() {
+  find . -type f \( -iname '*.md' -o -iname '*.markdown' \) 2>/dev/null |
+    "$fzf_bin" \
+      --prompt='Markdown > ' \
+      --preview='glow --style dark {}' \
+      --preview-window='right:62%:wrap'
+}
+
+pick_file() {
+  find . -type f -not -path '*/.git/*' 2>/dev/null |
+    "$fzf_bin" \
+      --prompt='File > ' \
+      --preview='if [ -d {} ]; then eza -la --icons --git --group-directories-first {}; elif file --mime-type -b {} | grep -q text; then sed -n "1,220p" {}; else file {}; fi' \
+      --preview-window='right:62%:wrap'
+}
+
+show_help() {
+  cat <<'EOF' | less -R
+Command palette
+
+Alt-p      Open this palette
+Alt-u      Pick URL from tmux scrollback and open it in Chrome on the laptop
+prefix u   Same URL picker
+prefix M   Pick Markdown and read it in tmux with glow
+
+Useful shell commands
+
+l          Detailed eza listing with icons and git state
+lt         eza tree, two levels deep
+glow FILE  Read Markdown in the terminal
+open-on-laptop URL
+           Open URL in Chrome on the laptop
+
+EOF
+}
+
+choice="$(
+  cat <<'EOF' |
+Markdown: preview in Chrome	Render selected Markdown as polished HTML and open it in laptop Chrome.
+Markdown: read in tmux	Read selected Markdown in the terminal with glow.
+URL: open from scrollback	Pick a URL from tmux history and open it in laptop Chrome.
+Files: browse here	Search files with fzf and eza/text previews.
+Directory: eza tree	Show a nice eza tree for this directory.
+Git: diff	Show the current git diff in a full tmux popup.
+Tmux: search key bindings	Search active tmux key bindings.
+Tmux: reload config	Reload ~/.tmux.conf.
+Help: workflow cheatsheet	Show the small cheatsheet for this setup.
+EOF
+  "$fzf_bin" \
+    --prompt='Command > ' \
+    --delimiter=$'\t' \
+    --with-nth=1 \
+    --preview='printf "%s\n" {2}' \
+    --preview-window='down:3:wrap'
+)"
+
+action="${choice%%$'\t'*}"
+
+case "$action" in
+  'Markdown: preview in Chrome')
+    file="$(pick_markdown)" || exit 0
+    "$markdown_preview" "$file"
+    ;;
+  'Markdown: read in tmux')
+    file="$(pick_markdown)" || exit 0
+    exec glow --pager "$file"
+    ;;
+  'URL: open from scrollback')
+    tmux run-shell -b "$url_picker 2000 $open_on_laptop '' '' ''"
+    ;;
+  'Files: browse here')
+    file="$(pick_file)" || exit 0
+    exec "${EDITOR:-vim}" "$file"
+    ;;
+  'Directory: eza tree')
+    exec sh -c 'eza --tree --level=3 --long --icons --git --group-directories-first -a | less -R'
+    ;;
+  'Git: diff')
+    exec sh -c 'git diff --color=always | delta --paging=always --line-numbers --navigate'
+    ;;
+  'Tmux: search key bindings')
+    tmux list-keys | "$fzf_bin" --prompt='Tmux keys > ' --preview='printf "%s\n" {}' --preview-window='down:3:wrap' >/dev/null
+    ;;
+  'Tmux: reload config')
+    tmux source-file "$HOME/.tmux.conf"
+    tmux display-message 'tmux config reloaded'
+    ;;
+  'Help: workflow cheatsheet')
+    show_help
+    ;;
+esac

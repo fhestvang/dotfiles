@@ -12,6 +12,10 @@ if [ -d "$DOTFILES_ZSH_ROOT/usr/share/zsh/functions" ]; then
   )
 fi
 
+if [ -d "$HOME/.local/share/zsh/site-functions" ]; then
+  fpath=("$HOME/.local/share/zsh/site-functions" $fpath)
+fi
+
 if [ -d "$DOTFILES_ZSH_ROOT/usr/lib/$(uname -m)-linux-gnu/zsh/$ZSH_VERSION" ]; then
   module_path=("$DOTFILES_ZSH_ROOT/usr/lib/$(uname -m)-linux-gnu/zsh/$ZSH_VERSION" $module_path)
 elif [ -d "$DOTFILES_ZSH_ROOT/usr/lib/aarch64-linux-gnu/zsh/$ZSH_VERSION" ]; then
@@ -32,28 +36,36 @@ setopt HIST_REDUCE_BLANKS
 setopt HIST_VERIFY
 setopt INC_APPEND_HISTORY
 setopt SHARE_HISTORY
+setopt NO_BEEP
 
-autoload -Uz compinit
-mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
-_zcompdump="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
-if [[ -n "$_zcompdump"(#qN.mh+24) ]]; then
-  compinit -d "$_zcompdump"
-else
-  compinit -C -d "$_zcompdump"
+if [[ -o interactive ]]; then
+  autoload -Uz compinit
+  mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+  _zcompdump="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
+  if [[ -n "$_zcompdump"(#qN.mh+24) ]]; then
+    compinit -d "$_zcompdump"
+  else
+    compinit -C -d "$_zcompdump"
+  fi
+  unset _zcompdump
+
+  zstyle ':completion:*' menu select
+  zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
+  zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+  zstyle ':completion:*' verbose yes
+
+  bindkey -v
+  export KEYTIMEOUT=1
+  autoload -Uz up-line-or-beginning-search down-line-or-beginning-search
+  zle -N up-line-or-beginning-search
+  zle -N down-line-or-beginning-search
+  bindkey '^[[A' up-line-or-beginning-search
+  bindkey '^[[B' down-line-or-beginning-search
+  bindkey -M viins '^[[A' up-line-or-beginning-search
+  bindkey -M viins '^[[B' down-line-or-beginning-search
+  bindkey -M vicmd '^[[A' up-line-or-beginning-search
+  bindkey -M vicmd '^[[B' down-line-or-beginning-search
 fi
-unset _zcompdump
-
-zstyle ':completion:*' menu select
-zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
-zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
-zstyle ':completion:*' verbose yes
-
-bindkey -e
-autoload -Uz up-line-or-beginning-search down-line-or-beginning-search
-zle -N up-line-or-beginning-search
-zle -N down-line-or-beginning-search
-bindkey '^[[A' up-line-or-beginning-search
-bindkey '^[[B' down-line-or-beginning-search
 
 if [ -r "$HOME/github/dotfiles/shell/common.sh" ]; then
   . "$HOME/github/dotfiles/shell/common.sh"
@@ -66,6 +78,12 @@ ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=244'
 
 if [ -r "$ZSH_PLUGIN_DIR/zsh-autosuggestions/zsh-autosuggestions.zsh" ]; then
   . "$ZSH_PLUGIN_DIR/zsh-autosuggestions/zsh-autosuggestions.zsh"
+  if [[ -o interactive ]]; then
+    bindkey '^ ' autosuggest-accept
+    bindkey '^@' autosuggest-accept
+    bindkey -M viins '^ ' autosuggest-accept
+    bindkey -M viins '^@' autosuggest-accept
+  fi
 fi
 
 if ! command -v starship >/dev/null 2>&1; then
@@ -79,4 +97,8 @@ fi
 
 if [ -r "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]; then
   . "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+fi
+
+if [ -s "$HOME/.bun/_bun" ]; then
+  . "$HOME/.bun/_bun"
 fi

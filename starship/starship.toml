@@ -8,8 +8,8 @@ format = "[$output]($style) "
 style = "245"
 
 [directory]
-format = "[$path]($style) "
-style = "248"
+format = "[in](245) [$path]($style) "
+style = "bold cyan"
 truncation_length = 3
 truncation_symbol = "../"
 truncate_to_repo = false

@@ -1,0 +1,9 @@
+style = "compact"
+search_mode = "fuzzy"
+filter_mode = "global"
+workspaces = true
+secrets_filter = true
+enter_accept = false
+
+[sync]
+records = true

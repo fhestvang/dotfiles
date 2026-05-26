@@ -1,0 +1,326 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DEFAULT_HOST="${CODEX_IMAGE_PASTE_HOST:-${REMOTE_IMAGE_PASTE_HOST:-spark}}"
+REMOTE_DIR="${CODEX_IMAGE_PASTE_REMOTE_DIR:-${REMOTE_IMAGE_PASTE_REMOTE_DIR:-.cache/codex-clipboard-images}}"
+HOST="$DEFAULT_HOST"
+SOURCE_FILE=""
+SOURCE_EXT=""
+COPY_PATH=0
+
+usage() {
+  cat <<'USAGE'
+Usage: remote-image-paste [options] [host]
+
+Reads an image from the local clipboard, uploads it to a remote SSH host, and
+prints the remote path. Paste that path into Codex; Codex attaches image paths.
+
+Options:
+  --host HOST        SSH target. Defaults to CODEX_IMAGE_PASTE_HOST or spark.
+  --remote-dir DIR  Remote staging dir. Defaults to ~/.cache/codex-clipboard-images.
+  --file PATH       Upload an existing local image instead of reading clipboard.
+  --ext EXT         Extension for --file when PATH has no useful suffix.
+  --copy-path       Copy the printed remote path to the local text clipboard.
+  -h, --help        Show this help.
+
+Environment:
+  CODEX_IMAGE_PASTE_HOST
+  CODEX_IMAGE_PASTE_REMOTE_DIR
+USAGE
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --host)
+      [ "$#" -ge 2 ] || { echo "missing value for --host" >&2; exit 2; }
+      HOST="$2"
+      shift 2
+      ;;
+    --remote-dir)
+      [ "$#" -ge 2 ] || { echo "missing value for --remote-dir" >&2; exit 2; }
+      REMOTE_DIR="$2"
+      shift 2
+      ;;
+    --file)
+      [ "$#" -ge 2 ] || { echo "missing value for --file" >&2; exit 2; }
+      SOURCE_FILE="$2"
+      shift 2
+      ;;
+    --ext)
+      [ "$#" -ge 2 ] || { echo "missing value for --ext" >&2; exit 2; }
+      SOURCE_EXT="$2"
+      shift 2
+      ;;
+    --copy-path)
+      COPY_PATH=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+    *)
+      HOST="$1"
+      shift
+      ;;
+  esac
+done
+
+if [ "$#" -gt 0 ]; then
+  echo "unexpected arguments: $*" >&2
+  usage >&2
+  exit 2
+fi
+
+if [ -z "$HOST" ]; then
+  echo "missing SSH host" >&2
+  exit 2
+fi
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+shell_quote() {
+  printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
+run_limited() {
+  if have timeout; then
+    timeout "${CODEX_IMAGE_PASTE_TIMEOUT:-4}" "$@"
+  else
+    "$@"
+  fi
+}
+
+temp_dir=""
+cleanup() {
+  if [ -n "$temp_dir" ]; then
+    rm -rf "$temp_dir"
+  fi
+}
+trap cleanup EXIT
+
+make_temp_dir() {
+  local base="${TMPDIR:-/tmp}"
+  mktemp -d "$base/remote-image-paste.XXXXXX"
+}
+
+ext_from_path() {
+  local path="$1"
+  local ext="${path##*.}"
+  case "$(printf '%s' "$ext" | tr '[:upper:]' '[:lower:]')" in
+    png|jpg|jpeg|gif|webp|bmp) printf '%s\n' "$(printf '%s' "$ext" | tr '[:upper:]' '[:lower:]')" ;;
+    *) printf '%s\n' "" ;;
+  esac
+}
+
+capture_with_powershell() {
+  have powershell.exe || return 1
+  have wslpath || return 1
+
+  local out="$1"
+  local win_out
+  win_out="$(wslpath -w "$out")" || return 1
+
+  WSL_CLIPBOARD_IMAGE_OUT="$win_out" powershell.exe -NoProfile -STA -Command '
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+    $img = [System.Windows.Forms.Clipboard]::GetImage()
+    if ($null -eq $img) { exit 1 }
+    $img.Save($env:WSL_CLIPBOARD_IMAGE_OUT, [System.Drawing.Imaging.ImageFormat]::Png)
+  ' >/dev/null 2>&1
+}
+
+capture_with_pngpaste() {
+  have pngpaste || return 1
+  pngpaste "$1" >/dev/null 2>&1
+}
+
+capture_with_osascript() {
+  have osascript || return 1
+  local out="$1"
+  osascript >/dev/null 2>&1 <<EOF
+set imgPath to POSIX file "$out"
+set imgData to the clipboard as «class PNGf»
+set fileRef to open for access imgPath with write permission
+write imgData to fileRef
+close access fileRef
+EOF
+}
+
+capture_with_linux_clipboard() {
+  local out="$1"
+  local mime ext candidate
+
+  for mime_ext in \
+    "image/png png" \
+    "image/jpeg jpg" \
+    "image/jpg jpg" \
+    "image/gif gif" \
+    "image/webp webp" \
+    "image/bmp bmp"; do
+    mime="${mime_ext% *}"
+    ext="${mime_ext#* }"
+    candidate="$temp_dir/image.$ext"
+
+    if have wl-paste && [ -n "${WAYLAND_DISPLAY:-}" ]; then
+      if run_limited wl-paste --no-newline --type "$mime" >"$candidate" 2>/dev/null && [ -s "$candidate" ]; then
+        mv "$candidate" "$out"
+        printf '%s\n' "$ext"
+        return 0
+      fi
+    fi
+
+    if have xclip && [ -n "${DISPLAY:-}" ]; then
+      if run_limited xclip -selection clipboard -t "$mime" -o >"$candidate" 2>/dev/null && [ -s "$candidate" ]; then
+        mv "$candidate" "$out"
+        printf '%s\n' "$ext"
+        return 0
+      fi
+    fi
+  done
+
+  return 1
+}
+
+capture_clipboard_image() {
+  temp_dir="$(make_temp_dir)"
+  local out="$temp_dir/image.png"
+  local ext
+
+  if capture_with_powershell "$out" && [ -s "$out" ]; then
+    printf '%s %s\n' "$out" "png"
+    return 0
+  fi
+
+  if capture_with_pngpaste "$out" && [ -s "$out" ]; then
+    printf '%s %s\n' "$out" "png"
+    return 0
+  fi
+
+  if capture_with_osascript "$out" && [ -s "$out" ]; then
+    printf '%s %s\n' "$out" "png"
+    return 0
+  fi
+
+  ext="$(capture_with_linux_clipboard "$out" || true)"
+  if [ -n "$ext" ] && [ -s "$out" ]; then
+    printf '%s %s\n' "$out" "$ext"
+    return 0
+  fi
+
+  echo "no image found in local clipboard" >&2
+  return 1
+}
+
+convert_image_to_png() {
+  local input="$1"
+  local output="$2"
+
+  if have magick; then
+    magick "$input" "$output" >/dev/null 2>&1 && [ -s "$output" ] && return 0
+  fi
+
+  if have powershell.exe && have wslpath; then
+    local win_input win_output
+    win_input="$(wslpath -w "$input")" || return 1
+    win_output="$(wslpath -w "$output")" || return 1
+
+    WSL_IMAGE_CONVERT_INPUT="$win_input" \
+      WSL_IMAGE_CONVERT_OUTPUT="$win_output" \
+      powershell.exe -NoProfile -Command '
+        Add-Type -AssemblyName System.Drawing
+        $img = [System.Drawing.Image]::FromFile($env:WSL_IMAGE_CONVERT_INPUT)
+        try {
+          $img.Save($env:WSL_IMAGE_CONVERT_OUTPUT, [System.Drawing.Imaging.ImageFormat]::Png)
+        } finally {
+          $img.Dispose()
+        }
+      ' >/dev/null 2>&1 && [ -s "$output" ] && return 0
+  fi
+
+  return 1
+}
+
+copy_text_clipboard() {
+  local text="$1"
+
+  if have clip.exe; then
+    printf '%s' "$text" | clip.exe >/dev/null 2>&1 && return 0
+  fi
+  if have pbcopy; then
+    printf '%s' "$text" | pbcopy && return 0
+  fi
+  if have wl-copy && [ -n "${WAYLAND_DISPLAY:-}" ]; then
+    printf '%s' "$text" | wl-copy && return 0
+  fi
+  if have xclip && [ -n "${DISPLAY:-}" ]; then
+    printf '%s' "$text" | xclip -selection clipboard && return 0
+  fi
+  return 1
+}
+
+if [ -n "$SOURCE_FILE" ]; then
+  if [ ! -r "$SOURCE_FILE" ]; then
+    echo "cannot read --file path: $SOURCE_FILE" >&2
+    exit 1
+  fi
+  local_file="$SOURCE_FILE"
+  ext="${SOURCE_EXT:-$(ext_from_path "$SOURCE_FILE")}"
+  ext="${ext:-png}"
+else
+  read -r local_file ext < <(capture_clipboard_image)
+fi
+
+ext="$(printf '%s' "$ext" | tr '[:upper:]' '[:lower:]')"
+case "$ext" in
+  jpeg) ext="jpg" ;;
+  png|jpg|gif|webp|bmp) ;;
+  *) ext="png" ;;
+esac
+
+if [ "$ext" = "bmp" ]; then
+  if [ -z "$temp_dir" ]; then
+    temp_dir="$(make_temp_dir)"
+  fi
+  png_file="$temp_dir/image-normalized.png"
+  if convert_image_to_png "$local_file" "$png_file"; then
+    local_file="$png_file"
+    ext="png"
+  else
+    echo "clipboard image is BMP, but no local converter could produce PNG" >&2
+    exit 1
+  fi
+fi
+
+remote_home="$(ssh -o BatchMode=yes -o ClearAllForwardings=yes "$HOST" 'printf %s "$HOME"')"
+case "$REMOTE_DIR" in
+  /*) remote_dir_abs="$REMOTE_DIR" ;;
+  "~/"*) remote_dir_abs="$remote_home/${REMOTE_DIR#~/}" ;;
+  *) remote_dir_abs="$remote_home/$REMOTE_DIR" ;;
+esac
+
+base="clip-$(date +%Y%m%d-%H%M%S)-$$.$ext"
+remote_path="$remote_dir_abs/$base"
+remote_dir_q="$(shell_quote "$remote_dir_abs")"
+remote_path_q="$(shell_quote "$remote_path")"
+
+ssh -o BatchMode=yes -o ClearAllForwardings=yes "$HOST" \
+  "mkdir -p $remote_dir_q && chmod 700 $remote_dir_q && umask 077 && cat > $remote_path_q" \
+  <"$local_file"
+
+if [ "$COPY_PATH" -eq 1 ]; then
+  copy_text_clipboard "$remote_path" || true
+fi
+
+printf '%s\n' "$remote_path"

@@ -10,7 +10,7 @@ AUTO_ZSH=0
 
 usage() {
   cat <<'USAGE'
-Usage: ./install.sh [--install-packages] [--set-zsh]
+Usage: ./install.sh [--install-packages] [--set-zsh] [--auto-zsh]
 
 Options:
   --install-packages  Install missing tools with apt, Homebrew, or user-local installers.
@@ -56,6 +56,30 @@ link_file() {
 
   ln -s "$source" "$target"
   echo "link: $target -> $source"
+}
+
+copy_file() {
+  local source="$1"
+  local target="$2"
+  local rel backup_target
+
+  mkdir -p "$(dirname "$target")"
+
+  if [ -f "$target" ] && cmp -s "$source" "$target"; then
+    echo "ok: $target already current"
+    return
+  fi
+
+  if [ -e "$target" ] || [ -L "$target" ]; then
+    rel="${target#$HOME/}"
+    backup_target="$BACKUP_DIR/$rel"
+    mkdir -p "$(dirname "$backup_target")"
+    mv "$target" "$backup_target"
+    echo "backup: $target -> $backup_target"
+  fi
+
+  cp "$source" "$target"
+  echo "copy: $target <- $source"
 }
 
 clone_or_update() {
@@ -155,22 +179,70 @@ install_zsh_plugins() {
 
 install_tmux_plugins() {
   clone_or_update https://github.com/tmux-plugins/tpm "$HOME/.tmux/plugins/tpm"
+  if [ -x "$HOME/.tmux/plugins/tpm/bin/install_plugins" ]; then
+    "$HOME/.tmux/plugins/tpm/bin/install_plugins"
+  fi
+}
+
+is_wsl() {
+  grep -qiE '(microsoft|wsl)' /proc/sys/kernel/osrelease 2>/dev/null
+}
+
+windows_home_from_wsl() {
+  have powershell.exe || return 1
+  have wslpath || return 1
+
+  local win_home
+  win_home="$(
+    powershell.exe -NoProfile -NonInteractive \
+      -Command '[Console]::Out.Write([Environment]::GetFolderPath("UserProfile"))' \
+      2>/dev/null | tr -d '\r'
+  )"
+
+  [ -n "$win_home" ] || return 1
+  wslpath -u "$win_home"
+}
+
+install_wezterm_config() {
+  local source_dir="$DOTFILES_DIR/wezterm"
+  local xdg_config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+  local linux_config_dir="$xdg_config_home/wezterm"
+  local windows_home windows_config_dir file
+
+  [ -d "$source_dir" ] || return 0
+
+  for file in wezterm.lua remote-image-paste.lua codex-image-paste.ps1; do
+    [ -f "$source_dir/$file" ] || continue
+    link_file "$source_dir/$file" "$linux_config_dir/$file"
+  done
+
+  if is_wsl; then
+    if windows_home="$(windows_home_from_wsl)"; then
+      windows_config_dir="$windows_home/.config/wezterm"
+      for file in wezterm.lua remote-image-paste.lua codex-image-paste.ps1; do
+        [ -f "$source_dir/$file" ] || continue
+        copy_file "$source_dir/$file" "$windows_config_dir/$file"
+      done
+    else
+      echo "skip: could not resolve Windows home for WezTerm config"
+    fi
+  fi
 }
 
 install_packages() {
   if have apt-get; then
     if [ "$(id -u)" -eq 0 ]; then
       apt-get update
-      apt-get install -y zsh fzf zoxide tmux git curl
+      apt-get install -y zsh fzf zoxide tmux git curl stow direnv fd-find ripgrep bat
     elif sudo -n true 2>/dev/null; then
       sudo apt-get update
-      sudo apt-get install -y zsh fzf zoxide tmux git curl
+      sudo apt-get install -y zsh fzf zoxide tmux git curl stow direnv fd-find ripgrep bat
     else
       echo "skip: sudo requires a password in this session"
-      echo "run manually: sudo apt-get update && sudo apt-get install -y zsh fzf zoxide tmux git curl"
+      echo "run manually: sudo apt-get update && sudo apt-get install -y zsh fzf zoxide tmux git curl stow direnv fd-find ripgrep bat"
     fi
   elif have brew; then
-    brew install zsh fzf zoxide starship tmux git
+    brew install zsh fzf zoxide starship tmux git stow direnv fd ripgrep bat eza atuin yazi
   else
     echo "skip: no supported package manager found"
   fi
@@ -186,7 +258,6 @@ if [ "$INSTALL_PACKAGES" -eq 1 ]; then
 fi
 
 install_zsh_plugins
-install_tmux_plugins
 
 link_file "$DOTFILES_DIR/bash/bashrc" "$HOME/.bashrc"
 link_file "$DOTFILES_DIR/bash/bash_profile" "$HOME/.bash_profile"
@@ -194,8 +265,14 @@ link_file "$DOTFILES_DIR/bash/bash_aliases" "$HOME/.bash_aliases"
 link_file "$DOTFILES_DIR/zsh/zshrc" "$HOME/.zshrc"
 link_file "$DOTFILES_DIR/zsh/zprofile" "$HOME/.zprofile"
 link_file "$DOTFILES_DIR/git/gitconfig" "$HOME/.gitconfig"
+link_file "$DOTFILES_DIR/inputrc" "$HOME/.inputrc"
 link_file "$DOTFILES_DIR/tmux/tmux.conf" "$HOME/.tmux.conf"
+link_file "$DOTFILES_DIR/tmux/tmux.conf" "$HOME/.config/tmux/tmux.conf"
 link_file "$DOTFILES_DIR/starship/starship.toml" "$HOME/.config/starship.toml"
+link_file "$DOTFILES_DIR/atuin/config.toml" "$HOME/.config/atuin/config.toml"
+link_file "$DOTFILES_DIR/ghostty/config" "$HOME/.config/ghostty/config"
+install_wezterm_config
+install_tmux_plugins
 
 if [ "$SET_ZSH" -eq 1 ]; then
   if ! have zsh; then

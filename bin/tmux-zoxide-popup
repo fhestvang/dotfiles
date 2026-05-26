@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+action="window"
+
+case "${1:-}" in
+  --shell)
+    action="shell"
+    ;;
+  ""|--window)
+    action="window"
+    ;;
+  -h|--help)
+    cat <<'USAGE'
+Usage: tmux-zoxide-popup [--window|--shell]
+
+Open a tmux popup backed by zoxide and fzf.
+
+Modes:
+  --window  Select a directory and open a new tmux window there. Default.
+  --shell   Select a directory and open an interactive shell inside the popup.
+USAGE
+    exit 0
+    ;;
+  *)
+    echo "unknown option: $1" >&2
+    exit 2
+    ;;
+esac
+
+need() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "missing required command: $1" >&2
+    exit 1
+  fi
+}
+
+need fzf
+need tmux
+need zoxide
+
+if [ -z "${TMUX:-}" ]; then
+  echo "tmux-zoxide-popup must run inside tmux" >&2
+  exit 1
+fi
+
+preview='bash -c '"'"'
+dir=$1
+if command -v eza >/dev/null 2>&1; then
+  eza -la --git --icons "$dir" 2>/dev/null | sed -n "1,120p"
+else
+  ls -la --color=always "$dir" 2>/dev/null | sed -n "1,120p"
+fi
+'"'"' _ {}'
+
+selected="$(
+  zoxide query -l 2>/dev/null |
+    awk 'NF && !seen[$0]++' |
+    tac
+)"
+
+if [ -z "$selected" ]; then
+  echo "zoxide has no directory history yet."
+  echo "cd into a few project directories first, then try again."
+  read -r -p "Press enter to close... " _
+  exit 0
+fi
+
+selected="$(
+  printf '%s\n' "$selected" |
+    fzf \
+      --prompt='zoxide> ' \
+      --height=100% \
+      --layout=reverse \
+      --border \
+      --preview "$preview" \
+      --preview-window='right,55%,border-left' ||
+    true
+)"
+
+[ -n "$selected" ] || exit 0
+
+zoxide add "$selected" >/dev/null 2>&1 || true
+
+case "$action" in
+  shell)
+    cd "$selected"
+    exec "${SHELL:-/bin/bash}" -l
+    ;;
+  window)
+    name="$(basename "$selected" | tr -c '[:alnum:]_.-' '-')"
+    tmux new-window -c "$selected" -n "${name:-zoxide}"
+    ;;
+esac
