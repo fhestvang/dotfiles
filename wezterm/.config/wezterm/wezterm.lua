@@ -6,7 +6,7 @@ local wsl_distro = 'Ubuntu'
 local shell_command = 'export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; shell="$(command -v zsh 2>/dev/null || command -v bash 2>/dev/null || printf /bin/sh)"; export SHELL="$shell"; exec "$shell" -l'
 local tmux_command = 'export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; shell="$(command -v zsh 2>/dev/null || command -v bash 2>/dev/null || printf /bin/sh)"; export SHELL="$shell"; if command -v tmux >/dev/null 2>&1; then exec tmux new-session -A -s main; fi; exec "$shell" -l'
 
-local function wsl_args(command)
+local function wsl_command_args(...)
   return {
     'wsl.exe',
     '-d',
@@ -14,10 +14,16 @@ local function wsl_args(command)
     '--cd',
     '~',
     '--',
+    ...,
+  }
+end
+
+local function wsl_bash_args(command)
+  return wsl_command_args(
     'bash',
     '-lc',
-    command,
-  }
+    command
+  )
 end
 
 local function spark_args(command)
@@ -44,12 +50,12 @@ config.cursor_blink_rate = 0
 config.text_blink_rate = 0
 config.text_blink_rate_rapid = 0
 
-config.default_prog = wsl_args(shell_command)
+config.default_prog = wsl_command_args('zsh', '-l')
 
 config.launch_menu = {
   {
     label = 'Laptop shell',
-    args = wsl_args(shell_command),
+    args = wsl_command_args('zsh', '-l'),
   },
   {
     label = 'Spark shell',
@@ -57,7 +63,7 @@ config.launch_menu = {
   },
   {
     label = 'Laptop tmux',
-    args = wsl_args(tmux_command),
+    args = wsl_bash_args(tmux_command),
   },
   {
     label = 'Spark tmux',
