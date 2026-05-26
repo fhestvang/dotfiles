@@ -4,9 +4,29 @@ set -euo pipefail
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_ROOT="${DOTFILES_BACKUP_DIR:-$HOME/.dotfiles-backup}"
 BACKUP_DIR="$BACKUP_ROOT/$(date +%Y%m%d-%H%M%S)"
+STOW_PACKAGES=(bash zsh git readline tmux starship atuin ghostty wezterm)
+STOW_TARGETS=(
+  "$HOME/.bashrc"
+  "$HOME/.bash_profile"
+  "$HOME/.bash_aliases"
+  "$HOME/.zshrc"
+  "$HOME/.zprofile"
+  "$HOME/.gitconfig"
+  "$HOME/.inputrc"
+  "$HOME/.tmux.conf"
+  "$HOME/.config/tmux/tmux.conf"
+  "$HOME/.config/starship.toml"
+  "$HOME/.config/atuin/config.toml"
+  "$HOME/.config/ghostty/config"
+  "$HOME/.config/wezterm/wezterm.lua"
+  "$HOME/.config/wezterm/remote-image-paste.lua"
+  "$HOME/.config/wezterm/codex-image-paste.ps1"
+)
 INSTALL_PACKAGES=0
 SET_ZSH=0
 AUTO_ZSH=0
+
+export PATH="$HOME/.local/bin:$PATH"
 
 usage() {
   cat <<'USAGE'
@@ -34,34 +54,20 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
-link_file() {
-  local source="$1"
-  local target="$2"
+backup_path() {
+  local target="$1"
   local rel backup_target
 
-  mkdir -p "$(dirname "$target")"
-
-  if [ -L "$target" ] && [ "$(readlink "$target")" = "$source" ]; then
-    echo "ok: $target already linked"
-    return
-  fi
-
-  if [ -e "$target" ] || [ -L "$target" ]; then
-    rel="${target#$HOME/}"
-    backup_target="$BACKUP_DIR/$rel"
-    mkdir -p "$(dirname "$backup_target")"
-    mv "$target" "$backup_target"
-    echo "backup: $target -> $backup_target"
-  fi
-
-  ln -s "$source" "$target"
-  echo "link: $target -> $source"
+  rel="${target#$HOME/}"
+  backup_target="$BACKUP_DIR/$rel"
+  mkdir -p "$(dirname "$backup_target")"
+  mv "$target" "$backup_target"
+  echo "backup: $target -> $backup_target"
 }
 
 copy_file() {
   local source="$1"
   local target="$2"
-  local rel backup_target
 
   mkdir -p "$(dirname "$target")"
 
@@ -71,11 +77,7 @@ copy_file() {
   fi
 
   if [ -e "$target" ] || [ -L "$target" ]; then
-    rel="${target#$HOME/}"
-    backup_target="$BACKUP_DIR/$rel"
-    mkdir -p "$(dirname "$backup_target")"
-    mv "$target" "$backup_target"
-    echo "backup: $target -> $backup_target"
+    backup_path "$target"
   fi
 
   cp "$source" "$target"
@@ -168,6 +170,45 @@ install_zoxide_user() {
   fi
 }
 
+install_stow_user_apt() {
+  if have stow; then
+    return
+  fi
+
+  if ! have apt-get || ! have dpkg-deb || ! have perl; then
+    echo "skip: user-local stow install needs apt-get, dpkg-deb, and perl"
+    return
+  fi
+
+  local tmp stow_root wrapper
+  tmp="$(mktemp -d)"
+  stow_root="$HOME/.local/opt/stow-ubuntu"
+  wrapper="$HOME/.local/bin/stow"
+  mkdir -p "$HOME/.local/bin" "$stow_root"
+
+  (
+    cd "$tmp"
+    apt-get download stow
+    for deb in ./*.deb; do
+      dpkg-deb -x "$deb" "$stow_root"
+    done
+  )
+
+  rm -rf "$tmp"
+
+  if [ -x "$stow_root/usr/bin/stow" ]; then
+    printf '%s\n' \
+      '#!/usr/bin/env bash' \
+      "export PERL5LIB=\"$stow_root/usr/share/perl5\${PERL5LIB:+:\$PERL5LIB}\"" \
+      "exec \"$stow_root/usr/bin/stow\" \"\$@\"" \
+      > "$wrapper"
+    chmod +x "$wrapper"
+    echo "installed: user-local stow -> $wrapper"
+  else
+    echo "skip: user-local stow package extraction did not produce $stow_root/usr/bin/stow"
+  fi
+}
+
 install_zsh_plugins() {
   local plugin_dir="$HOME/.local/share/zsh/plugins"
   mkdir -p "$plugin_dir"
@@ -204,17 +245,10 @@ windows_home_from_wsl() {
 }
 
 install_wezterm_config() {
-  local source_dir="$DOTFILES_DIR/wezterm"
-  local xdg_config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
-  local linux_config_dir="$xdg_config_home/wezterm"
+  local source_dir="$DOTFILES_DIR/wezterm/.config/wezterm"
   local windows_home windows_config_dir file
 
   [ -d "$source_dir" ] || return 0
-
-  for file in wezterm.lua remote-image-paste.lua codex-image-paste.ps1; do
-    [ -f "$source_dir/$file" ] || continue
-    link_file "$source_dir/$file" "$linux_config_dir/$file"
-  done
 
   if is_wsl; then
     if windows_home="$(windows_home_from_wsl)"; then
@@ -249,8 +283,62 @@ install_packages() {
 
   install_starship_user
   install_zsh_user_apt
+  install_stow_user_apt
   install_fzf_user
   install_zoxide_user
+}
+
+ensure_stow() {
+  if have stow; then
+    return
+  fi
+
+  install_stow_user_apt
+  if ! have stow; then
+    echo "error: GNU Stow is required; install stow or run ./install.sh --install-packages" >&2
+    exit 1
+  fi
+}
+
+prepare_stow_target() {
+  local target="$1"
+  local link_dest resolved
+
+  [ -e "$target" ] || [ -L "$target" ] || return 0
+
+  if [ -L "$target" ]; then
+    link_dest="$(readlink "$target")"
+    resolved="$(readlink -f "$target" 2>/dev/null || true)"
+
+    if [ -n "$resolved" ]; then
+      case "$resolved" in
+        "$DOTFILES_DIR"/*)
+          return
+          ;;
+      esac
+    fi
+
+    case "$link_dest" in
+      "$DOTFILES_DIR"/*|*github/dotfiles/*)
+        rm "$target"
+        echo "unlink: stale managed link $target -> $link_dest"
+        return
+        ;;
+    esac
+  fi
+
+  backup_path "$target"
+}
+
+install_stow_packages() {
+  local target
+
+  ensure_stow
+  for target in "${STOW_TARGETS[@]}"; do
+    prepare_stow_target "$target"
+  done
+
+  stow -d "$DOTFILES_DIR" -t "$HOME" --no-folding -R "${STOW_PACKAGES[@]}"
 }
 
 if [ "$INSTALL_PACKAGES" -eq 1 ]; then
@@ -258,19 +346,7 @@ if [ "$INSTALL_PACKAGES" -eq 1 ]; then
 fi
 
 install_zsh_plugins
-
-link_file "$DOTFILES_DIR/bash/bashrc" "$HOME/.bashrc"
-link_file "$DOTFILES_DIR/bash/bash_profile" "$HOME/.bash_profile"
-link_file "$DOTFILES_DIR/bash/bash_aliases" "$HOME/.bash_aliases"
-link_file "$DOTFILES_DIR/zsh/zshrc" "$HOME/.zshrc"
-link_file "$DOTFILES_DIR/zsh/zprofile" "$HOME/.zprofile"
-link_file "$DOTFILES_DIR/git/gitconfig" "$HOME/.gitconfig"
-link_file "$DOTFILES_DIR/inputrc" "$HOME/.inputrc"
-link_file "$DOTFILES_DIR/tmux/tmux.conf" "$HOME/.tmux.conf"
-link_file "$DOTFILES_DIR/tmux/tmux.conf" "$HOME/.config/tmux/tmux.conf"
-link_file "$DOTFILES_DIR/starship/starship.toml" "$HOME/.config/starship.toml"
-link_file "$DOTFILES_DIR/atuin/config.toml" "$HOME/.config/atuin/config.toml"
-link_file "$DOTFILES_DIR/ghostty/config" "$HOME/.config/ghostty/config"
+install_stow_packages
 install_wezterm_config
 install_tmux_plugins
 

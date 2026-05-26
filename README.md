@@ -2,9 +2,9 @@
 
 Linux-native shell, Git, tmux, and prompt configuration.
 
-This repo is the source of truth for the laptop and `spark`. The layout is one
-small directory per tool, with a single installer that backs up replaced files
-and can bootstrap the tools the shell config expects.
+This repo is the source of truth for the laptop and `spark`. Installed config
+files are laid out as GNU Stow packages, with a single installer that backs up
+replaced files and can bootstrap the tools the shell config expects.
 
 ## Install
 
@@ -19,7 +19,7 @@ Short setup entrypoint:
 ./setup.sh
 ```
 
-That links the managed files into `$HOME` and moves any existing files to
+That runs Stow for the managed config packages and moves any replaced files to
 `~/.dotfiles-backup/<timestamp>/`.
 
 To install shell tools:
@@ -29,7 +29,7 @@ To install shell tools:
 ```
 
 The installer uses `apt` or Homebrew when available. Without sudo, it still
-installs user-local tools where possible.
+installs user-local tools where possible, including GNU Stow on Ubuntu systems.
 
 To switch the login shell after `zsh` is installed:
 
@@ -131,6 +131,25 @@ ssh -o BatchMode=yes -o ClearAllForwardings=yes spark \
 
 ## Managed Files
 
+Stow packages live at the repo root. Each package mirrors the path it owns under
+`$HOME`:
+
+```text
+bash/.bashrc
+zsh/.zshrc
+tmux/.tmux.conf
+starship/.config/starship.toml
+wezterm/.config/wezterm/wezterm.lua
+```
+
+`install.sh` currently stows:
+
+```text
+bash zsh git readline tmux starship atuin ghostty wezterm
+```
+
+Those packages manage:
+
 - `~/.bashrc`
 - `~/.bash_profile`
 - `~/.bash_aliases`
@@ -162,7 +181,7 @@ The config uses these when installed:
 - `zsh-syntax-highlighting`
 - `fzf-tab`
 - `tmux` with TPM
-- `stow`
+- GNU Stow
 - `direnv`
 - `atuin`
 - `eza`
