@@ -310,7 +310,7 @@ prepare_stow_target() {
     link_dest="$(readlink "$target")"
     resolved="$(readlink -f "$target" 2>/dev/null || true)"
 
-    if [ -n "$resolved" ]; then
+    if [ -n "$resolved" ] && [ -e "$resolved" ]; then
       case "$resolved" in
         "$DOTFILES_DIR"/*)
           return
