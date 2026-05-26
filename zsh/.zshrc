@@ -111,3 +111,6 @@ fi
 if [ -s "$HOME/.bun/_bun" ]; then
   . "$HOME/.bun/_bun"
 fi
+
+# Sandcastle Control Center
+alias scc='node "$HOME/github/fos-workbench/scripts/sandcastle-control-center.mjs"'

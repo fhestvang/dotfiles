@@ -170,6 +170,175 @@ install_zoxide_user() {
   fi
 }
 
+github_latest_asset_url() {
+  local repo="$1"
+  local pattern="$2"
+
+  have curl || return 1
+  curl -fsSL "https://api.github.com/repos/$repo/releases/latest" |
+    sed -n 's/.*"browser_download_url": "\(.*\)".*/\1/p' |
+    grep -E "$pattern" |
+    head -n 1
+}
+
+install_apt_user_binary() {
+  local package="$1"
+  local binary_rel="$2"
+  local primary="$3"
+  shift 3
+
+  if have "$primary"; then
+    return
+  fi
+
+  if ! have apt-get || ! have dpkg-deb; then
+    echo "skip: user-local $primary install needs apt-get and dpkg-deb"
+    return
+  fi
+
+  local tmp root alias_name
+  tmp="$(mktemp -d)"
+  root="$HOME/.local/opt/apt-user/$package"
+  mkdir -p "$HOME/.local/bin" "$root"
+
+  if ! (cd "$tmp" && apt-get download "$package"); then
+    rm -rf "$tmp"
+    echo "skip: could not download apt package $package"
+    return
+  fi
+
+  rm -rf "$root"
+  mkdir -p "$root"
+  for deb in "$tmp"/*.deb; do
+    dpkg-deb -x "$deb" "$root"
+  done
+  rm -rf "$tmp"
+
+  if [ ! -x "$root/$binary_rel" ]; then
+    echo "skip: $package did not provide $binary_rel"
+    return
+  fi
+
+  ln -sfn "$root/$binary_rel" "$HOME/.local/bin/$primary"
+  for alias_name in "$@"; do
+    ln -sfn "$root/$binary_rel" "$HOME/.local/bin/$alias_name"
+  done
+  echo "installed: user-local $primary -> $HOME/.local/bin/$primary"
+}
+
+install_apt_user_tools() {
+  install_apt_user_binary eza usr/bin/eza eza
+  install_apt_user_binary direnv usr/bin/direnv direnv
+  install_apt_user_binary fd-find usr/bin/fdfind fdfind fd
+  install_apt_user_binary ripgrep usr/bin/rg rg
+  install_apt_user_binary bat usr/bin/batcat batcat bat
+}
+
+install_mise_user() {
+  if have mise; then
+    return
+  fi
+
+  local arch asset_pattern url tmp
+  case "$(uname -m)" in
+    x86_64) arch="x64" ;;
+    aarch64|arm64) arch="arm64" ;;
+    *) echo "skip: unsupported mise architecture $(uname -m)"; return ;;
+  esac
+
+  asset_pattern="mise-v[0-9][^/]*-linux-$arch$"
+  url="$(github_latest_asset_url jdx/mise "$asset_pattern" || true)"
+  if [ -z "$url" ]; then
+    echo "skip: could not find mise release asset for linux-$arch"
+    return
+  fi
+
+  tmp="$(mktemp -d)"
+  if curl -fL "$url" -o "$tmp/mise"; then
+    mkdir -p "$HOME/.local/bin"
+    install -m 755 "$tmp/mise" "$HOME/.local/bin/mise"
+    echo "installed: user-local mise -> $HOME/.local/bin/mise"
+  else
+    echo "skip: mise download failed"
+  fi
+  rm -rf "$tmp"
+}
+
+install_yazi_user() {
+  if have yazi; then
+    return
+  fi
+
+  local target url tmp yazi_bin ya_bin
+  case "$(uname -m)" in
+    x86_64) target="x86_64-unknown-linux-gnu" ;;
+    aarch64|arm64) target="aarch64-unknown-linux-gnu" ;;
+    *) echo "skip: unsupported yazi architecture $(uname -m)"; return ;;
+  esac
+
+  if ! have unzip; then
+    echo "skip: yazi install needs unzip"
+    return
+  fi
+
+  url="$(github_latest_asset_url sxyazi/yazi "yazi-$target[.]zip$" || true)"
+  if [ -z "$url" ]; then
+    echo "skip: could not find yazi release asset for $target"
+    return
+  fi
+
+  tmp="$(mktemp -d)"
+  if curl -fL "$url" -o "$tmp/yazi.zip" && unzip -q "$tmp/yazi.zip" -d "$tmp"; then
+    yazi_bin="$(find "$tmp" -type f -name yazi -perm -u=x | head -n 1)"
+    ya_bin="$(find "$tmp" -type f -name ya -perm -u=x | head -n 1)"
+    if [ -n "$yazi_bin" ]; then
+      mkdir -p "$HOME/.local/bin"
+      install -m 755 "$yazi_bin" "$HOME/.local/bin/yazi"
+      [ -n "$ya_bin" ] && install -m 755 "$ya_bin" "$HOME/.local/bin/ya"
+      echo "installed: user-local yazi -> $HOME/.local/bin/yazi"
+    else
+      echo "skip: yazi archive did not contain yazi binary"
+    fi
+  else
+    echo "skip: yazi download or extraction failed"
+  fi
+  rm -rf "$tmp"
+}
+
+install_atuin_user() {
+  if have atuin; then
+    return
+  fi
+
+  local target url tmp atuin_bin
+  case "$(uname -m)" in
+    x86_64) target="x86_64-unknown-linux-gnu" ;;
+    aarch64|arm64) target="aarch64-unknown-linux-gnu" ;;
+    *) echo "skip: unsupported atuin architecture $(uname -m)"; return ;;
+  esac
+
+  url="$(github_latest_asset_url atuinsh/atuin "atuin-$target[.]tar[.]gz$" || true)"
+  if [ -z "$url" ]; then
+    echo "skip: could not find atuin release asset for $target"
+    return
+  fi
+
+  tmp="$(mktemp -d)"
+  if curl -fL "$url" -o "$tmp/atuin.tar.gz" && tar -xzf "$tmp/atuin.tar.gz" -C "$tmp"; then
+    atuin_bin="$(find "$tmp" -type f -name atuin -perm -u=x | head -n 1)"
+    if [ -n "$atuin_bin" ]; then
+      mkdir -p "$HOME/.local/bin"
+      install -m 755 "$atuin_bin" "$HOME/.local/bin/atuin"
+      echo "installed: user-local atuin -> $HOME/.local/bin/atuin"
+    else
+      echo "skip: atuin archive did not contain atuin binary"
+    fi
+  else
+    echo "skip: atuin download or extraction failed"
+  fi
+  rm -rf "$tmp"
+}
+
 install_stow_user_apt() {
   if have stow; then
     return
@@ -286,6 +455,10 @@ install_packages() {
   install_stow_user_apt
   install_fzf_user
   install_zoxide_user
+  install_apt_user_tools
+  install_mise_user
+  install_yazi_user
+  install_atuin_user
 }
 
 ensure_stow() {

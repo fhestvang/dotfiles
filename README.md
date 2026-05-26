@@ -28,8 +28,9 @@ To install shell tools:
 ./install.sh --install-packages
 ```
 
-The installer uses `apt` or Homebrew when available. Without sudo, it still
-installs user-local tools where possible, including GNU Stow on Ubuntu systems.
+The installer uses `apt` or Homebrew when available. Without sudo on Ubuntu, it
+still installs user-local tools where possible, including GNU Stow, `eza`,
+`direnv`, `fd`, `rg`, `bat`, `mise`, `yazi`, and `atuin`.
 
 To switch the login shell after `zsh` is installed:
 

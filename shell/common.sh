@@ -41,6 +41,48 @@ dotfiles_path_prepend "$HOME/.cargo/bin"
 dotfiles_path_prepend "$HOME/.local/share/fzf/bin"
 export PATH
 
+dotfiles_refresh_linux_path() {
+  local old_ifs dir filtered
+
+  old_ifs="$IFS"
+  IFS=:
+  filtered=""
+  for dir in $PATH; do
+    case "$dir" in
+      /mnt/[a-zA-Z]/*) continue ;;
+    esac
+    filtered="${filtered:+$filtered:}$dir"
+  done
+  IFS="$old_ifs"
+
+  DOTFILES_LINUX_PATH="$filtered"
+}
+
+dotfiles_have_linux() {
+  local old_ifs dir candidate
+
+  if [ -z "${DOTFILES_LINUX_PATH:-}" ]; then
+    dotfiles_refresh_linux_path
+  fi
+
+  case "$1" in
+    */*) [ -x "$1" ] && [ ! -d "$1" ]; return ;;
+  esac
+
+  old_ifs="$IFS"
+  IFS=:
+  for dir in $DOTFILES_LINUX_PATH; do
+    [ -n "$dir" ] || dir=.
+    candidate="$dir/$1"
+    if [ -x "$candidate" ] && [ ! -d "$candidate" ]; then
+      IFS="$old_ifs"
+      return 0
+    fi
+  done
+  IFS="$old_ifs"
+  return 1
+}
+
 alias ll='ls -alF'
 alias la='ls -A'
 alias t='tmux new-session -A -s main'
@@ -122,20 +164,20 @@ laptop() {
   fi
 }
 
-if command -v eza >/dev/null 2>&1; then
+if dotfiles_have_linux eza; then
   alias l='eza -l --icons --git -a'
   alias lt='eza --tree --level=2 --long --icons --git'
 else
   alias l='ls -CF'
 fi
 
-if command -v batcat >/dev/null 2>&1; then
+if dotfiles_have_linux batcat; then
   alias cat='batcat'
-elif command -v bat >/dev/null 2>&1; then
+elif dotfiles_have_linux bat; then
   alias cat='bat'
 fi
 
-if command -v kubectl >/dev/null 2>&1; then
+if dotfiles_have_linux kubectl; then
   alias k='kubectl'
   alias kg='kubectl get'
   alias kd='kubectl describe'
@@ -171,21 +213,24 @@ fi
 FNM_PATH="$HOME/.local/share/fnm"
 if [ -d "$FNM_PATH" ]; then
   dotfiles_path_prepend "$FNM_PATH"
-  if command -v fnm >/dev/null 2>&1; then
+  dotfiles_refresh_linux_path
+  if dotfiles_have_linux fnm; then
     if [ -n "${ZSH_VERSION:-}" ]; then
       eval "$(fnm env --shell zsh)"
     else
       eval "$(fnm env --shell bash)"
     fi
+    dotfiles_refresh_linux_path
   fi
 fi
 
-if command -v mise >/dev/null 2>&1; then
+if dotfiles_have_linux mise; then
   if [ -n "${ZSH_VERSION:-}" ]; then
     eval "$(mise activate zsh)"
   else
     eval "$(mise activate bash)"
   fi
+  dotfiles_refresh_linux_path
 fi
 
 if [ -n "${BASH_VERSION:-}" ] && [ -r "$HOME/.openclaw/completions/openclaw.bash" ]; then
@@ -194,7 +239,7 @@ fi
 
 __dotfiles_refresh_tmux_display_env() {
   [ -n "${TMUX:-}" ] || return 0
-  command -v tmux >/dev/null 2>&1 || return 0
+  dotfiles_have_linux tmux || return 0
   eval "$(
     for name in DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS XDG_CURRENT_DESKTOP XDG_SESSION_TYPE; do
       tmux show-environment -s "$name" 2>/dev/null | sed '/^-/d'
@@ -207,7 +252,7 @@ if [ -n "${ZSH_VERSION:-}" ]; then
   add-zsh-hook precmd __dotfiles_refresh_tmux_display_env
 fi
 
-if command -v zoxide >/dev/null 2>&1; then
+if dotfiles_have_linux zoxide; then
   if [ -n "${ZSH_VERSION:-}" ]; then
     eval "$(zoxide init zsh)"
   else
@@ -215,7 +260,7 @@ if command -v zoxide >/dev/null 2>&1; then
   fi
 fi
 
-if command -v yazi >/dev/null 2>&1; then
+if dotfiles_have_linux yazi; then
   y() {
     local tmp cwd
     tmp="$(mktemp -t yazi-cwd.XXXXXX)" || return
@@ -226,13 +271,13 @@ if command -v yazi >/dev/null 2>&1; then
   }
 fi
 
-if command -v fd >/dev/null 2>&1; then
+if dotfiles_have_linux fd; then
   export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
-elif command -v fdfind >/dev/null 2>&1; then
+elif dotfiles_have_linux fdfind; then
   export FZF_DEFAULT_COMMAND='fdfind --type f --hidden --follow --exclude .git'
 fi
 
-if command -v fzf >/dev/null 2>&1; then
+if dotfiles_have_linux fzf; then
   if [ -n "${BASH_VERSION:-}" ]; then
     [ -r /usr/share/doc/fzf/examples/key-bindings.bash ] && . /usr/share/doc/fzf/examples/key-bindings.bash
     [ -r /usr/share/doc/fzf/examples/completion.bash ] && . /usr/share/doc/fzf/examples/completion.bash
@@ -248,7 +293,7 @@ if command -v fzf >/dev/null 2>&1; then
   fi
 fi
 
-if command -v atuin >/dev/null 2>&1; then
+if dotfiles_have_linux atuin; then
   if [ -n "${ZSH_VERSION:-}" ]; then
     eval "$(atuin init zsh)"
   else
@@ -256,7 +301,7 @@ if command -v atuin >/dev/null 2>&1; then
   fi
 fi
 
-if command -v direnv >/dev/null 2>&1; then
+if dotfiles_have_linux direnv; then
   if [ -n "${ZSH_VERSION:-}" ]; then
     eval "$(direnv hook zsh)"
   else
@@ -344,7 +389,7 @@ bd() {
   fi
 }
 
-if command -v starship >/dev/null 2>&1; then
+if dotfiles_have_linux starship; then
   if [ -n "${ZSH_VERSION:-}" ]; then
     eval "$(starship init zsh)"
   else
