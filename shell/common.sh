@@ -91,7 +91,22 @@ ts() {
 }
 
 tsp() {
-  ts "$@"
+  local remote_command ssh_command
+
+  remote_command='export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; export TERM=xterm-256color; exec tmux -2 new-session -A -s main \; choose-tree -Zw'
+
+  if dotfiles_is_spark; then
+    if [ -n "${TMUX:-}" ]; then
+      tmux choose-tree -Zw
+    else
+      tmux new-session -A -s main \; choose-tree -Zw
+    fi
+  elif [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
+    ssh_command="ssh -q -tt -o ClearAllForwardings=yes spark $(printf '%q' "$remote_command")"
+    tmux detach-client -E "$ssh_command"
+  else
+    ssh -q -tt -o ClearAllForwardings=yes spark "$remote_command"
+  fi
 }
 
 laptop() {
