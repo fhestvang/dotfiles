@@ -59,9 +59,11 @@ links the Linux dotfiles and copies `wezterm/*` into:
 %USERPROFILE%\.config\wezterm\
 ```
 
-WezTerm then opens directly into Ubuntu WSL and attaches or creates the `main`
-tmux session. The launch menu keeps explicit entries for laptop tmux, laptop
-shell, Spark tmux, Spark shell, and PowerShell.
+WezTerm then opens directly into an Ubuntu WSL login shell. The launch menu
+keeps explicit entries for laptop shell, Spark shell, laptop tmux, Spark tmux,
+and PowerShell. Use `t` or the tmux launch-menu entries when you want to attach
+the shared `main` tmux session; the default terminal avoids auto-attaching tmux
+so restored windows do not create tmux-inside-tmux sessions.
 
 ## Machines
 

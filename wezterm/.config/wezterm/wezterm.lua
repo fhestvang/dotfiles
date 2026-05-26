@@ -44,24 +44,24 @@ config.cursor_blink_rate = 0
 config.text_blink_rate = 0
 config.text_blink_rate_rapid = 0
 
-config.default_prog = wsl_args(tmux_command)
+config.default_prog = wsl_args(shell_command)
 
 config.launch_menu = {
-  {
-    label = 'Laptop tmux',
-    args = wsl_args(tmux_command),
-  },
   {
     label = 'Laptop shell',
     args = wsl_args(shell_command),
   },
   {
-    label = 'Spark tmux',
-    args = spark_args(tmux_command),
-  },
-  {
     label = 'Spark shell',
     args = spark_args(shell_command),
+  },
+  {
+    label = 'Laptop tmux',
+    args = wsl_args(tmux_command),
+  },
+  {
+    label = 'Spark tmux',
+    args = spark_args(tmux_command),
   },
   {
     label = 'PowerShell',
