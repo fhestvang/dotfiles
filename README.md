@@ -253,7 +253,7 @@ Aliases:
 
 - `t` attaches to or creates the main tmux session.
 - `ts` attaches to or creates the main tmux session on `spark`.
-- `tsp` attaches to Spark tmux and opens the window picker directly.
+- `tsp` opens the tmux session/window picker on the current machine.
 - `cc` runs `claude --continue`.
 - `gs`, `gd`, `gco`, `gb`, `ga`, `gpl`, `gps`, and `glog` cover common Git flows.
 - `l` and `lt` use `eza` when installed and fall back to classic `ls`.
