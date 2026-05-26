@@ -264,15 +264,41 @@ if command -v direnv >/dev/null 2>&1; then
   fi
 fi
 
-for dotfiles_openbao_env in \
+# OpenBao GitHub-CLI env: cached because the synchronous Bao round-trip
+# (AppRole login + KV read) over Tailscale adds ~0.5s to every interactive
+# shell startup on the laptop. We source the cached env file instantly and
+# refresh in the background when it's missing or older than 12h.
+dotfiles_openbao_env_script=""
+for dotfiles_openbao_env_candidate in \
   "$HOME/github/fos/platform/openbao/openbao-github-cli-shell-env.sh" \
   "$HOME/github/fos/infrastructure/openbao-github-cli-shell-env.sh"; do
-  if [ -x "$dotfiles_openbao_env" ]; then
-    eval "$("$dotfiles_openbao_env" 2>/dev/null)" || true
+  if [ -x "$dotfiles_openbao_env_candidate" ]; then
+    dotfiles_openbao_env_script="$dotfiles_openbao_env_candidate"
     break
   fi
 done
-unset dotfiles_openbao_env
+unset dotfiles_openbao_env_candidate
+
+if [ -n "$dotfiles_openbao_env_script" ]; then
+  dotfiles_openbao_env_cache="${XDG_CACHE_HOME:-$HOME/.cache}/fos/openbao-github-token.env"
+  [ -r "$dotfiles_openbao_env_cache" ] && . "$dotfiles_openbao_env_cache"
+  if [ ! -r "$dotfiles_openbao_env_cache" ] || \
+     [ -n "$(find "$dotfiles_openbao_env_cache" -mmin +720 2>/dev/null)" ]; then
+    (
+      mkdir -p "$(dirname "$dotfiles_openbao_env_cache")" 2>/dev/null
+      tmp="$(mktemp "${dotfiles_openbao_env_cache}.XXXXXX" 2>/dev/null)" || exit 0
+      chmod 600 "$tmp" 2>/dev/null
+      if "$dotfiles_openbao_env_script" >"$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+        mv "$tmp" "$dotfiles_openbao_env_cache"
+      else
+        rm -f "$tmp"
+      fi
+    ) </dev/null >/dev/null 2>&1 &
+    disown 2>/dev/null || true
+  fi
+  unset dotfiles_openbao_env_cache
+fi
+unset dotfiles_openbao_env_script
 
 hermes() {
   if dotfiles_is_spark; then

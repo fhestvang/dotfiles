@@ -46,7 +46,7 @@ config.use_fancy_tab_bar = false
 config.window_decorations = 'TITLE | RESIZE'
 config.font_size = 11.5
 config.default_cursor_style = 'SteadyBlock'
-config.cursor_blink_rate = 0
+config.cursor_blink_rate = 2000000000
 config.text_blink_rate = 0
 config.text_blink_rate_rapid = 0
 
