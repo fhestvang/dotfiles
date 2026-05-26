@@ -43,6 +43,7 @@ export PATH
 
 alias ll='ls -alF'
 alias la='ls -A'
+alias t='tmux new-session -A -s main'
 alias cc='claude --continue'
 alias ..='cd ..'
 alias ...='cd ../..'
@@ -61,31 +62,6 @@ whereami() {
   printf '%s\n' "$DOTFILES_MACHINE"
 }
 
-dotfiles_tmux_client_session() {
-  local base="${1:-main}" tty_name session_name
-
-  tty_name="$(tty 2>/dev/null || printf client-$$)"
-  tty_name="${tty_name#/dev/}"
-  tty_name="$(printf '%s' "$tty_name" | tr -c '[:alnum:]_.-' '-')"
-  [ -n "$tty_name" ] || tty_name="client-$$"
-
-  session_name="${base}-${tty_name}"
-  tmux has-session -t "$base" 2>/dev/null || tmux new-session -d -s "$base"
-  tmux has-session -t "$session_name" 2>/dev/null || tmux new-session -d -t "$base" -s "$session_name"
-  printf '%s\n' "$session_name"
-}
-
-t() {
-  local target_session
-
-  target_session="$(dotfiles_tmux_client_session main)"
-  if [ -n "${TMUX:-}" ]; then
-    tmux switch-client -t "$target_session"
-  else
-    exec tmux -2 attach-session -t "$target_session"
-  fi
-}
-
 spark() {
   if dotfiles_is_spark; then
     printf 'already on spark\n'
@@ -97,13 +73,14 @@ spark() {
 ts() {
   local remote_command ssh_command
 
-  remote_command='export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; export TERM=xterm-256color; base=main; tty_name="$(tty 2>/dev/null || printf client-$$)"; tty_name="${tty_name#/dev/}"; tty_name="$(printf "%s" "$tty_name" | tr -c "[:alnum:]_.-" "-")"; session_name="$base-$tty_name"; tmux has-session -t "$base" 2>/dev/null || tmux new-session -d -s "$base"; tmux has-session -t "$session_name" 2>/dev/null || tmux new-session -d -t "$base" -s "$session_name"; exec tmux -2 attach-session -t "$session_name"'
+  remote_command='export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; export TERM=xterm-256color; exec tmux -2 new-session -A -s main'
 
   if dotfiles_is_spark; then
     if [ -n "${TMUX:-}" ]; then
-      t
+      tmux has-session -t main 2>/dev/null || tmux new-session -d -s main
+      tmux switch-client -t main
     else
-      t
+      tmux new-session -A -s main
     fi
   elif [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
     ssh_command="ssh -tt -o ClearAllForwardings=yes spark $(printf '%q' "$remote_command")"
@@ -119,7 +96,11 @@ tsp() {
   if [ -n "${TMUX:-}" ]; then
     tmux choose-tree -Zw
   else
-    target_session="$(dotfiles_tmux_client_session main)"
+    target_session="$(tmux list-sessions -F '#{session_name}' 2>/dev/null | sed -n '1p')"
+    if [ -z "$target_session" ]; then
+      target_session="main"
+      tmux new-session -d -s "$target_session"
+    fi
     tmux set-hook -g client-attached 'set-hook -gu client-attached; choose-tree -Zw'
     exec tmux -2 attach-session -t "$target_session"
   fi
