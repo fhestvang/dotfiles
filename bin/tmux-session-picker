@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+set -eu
+
+if ! command -v tmux >/dev/null 2>&1; then
+  printf '%s\n' 'tmux-session-picker: tmux not found' >&2
+  exit 1
+fi
+
+if [ -n "${TMUX:-}" ]; then
+  tmux choose-tree -Zs
+  exit 0
+fi
+
+if tmux has-session >/dev/null 2>&1; then
+  tmux -2 attach-session \; choose-tree -Zs
+  exit 0
+fi
+
+tmux -2 new-session -s main

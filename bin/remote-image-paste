@@ -94,6 +94,30 @@ shell_quote() {
   printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
 }
 
+dotfiles_machine() {
+  if [ -x "$HOME/github/dotfiles/bin/prompt-host" ]; then
+    "$HOME/github/dotfiles/bin/prompt-host" 2>/dev/null && return
+  fi
+  hostname -s 2>/dev/null || printf local
+}
+
+is_local_host() {
+  local machine hostname_short host_lc machine_lc hostname_lc
+
+  machine="$(dotfiles_machine)"
+  hostname_short="$(hostname -s 2>/dev/null || true)"
+  host_lc="$(printf '%s' "$HOST" | tr '[:upper:]' '[:lower:]')"
+  machine_lc="$(printf '%s' "$machine" | tr '[:upper:]' '[:lower:]')"
+  hostname_lc="$(printf '%s' "$hostname_short" | tr '[:upper:]' '[:lower:]')"
+
+  case "$host_lc" in
+    local|localhost|127.0.0.1|::1|laptop) return 0 ;;
+  esac
+  [ -n "$machine_lc" ] && [ "$host_lc" = "$machine_lc" ] && return 0
+  [ -n "$hostname_lc" ] && [ "$host_lc" = "$hostname_lc" ] && return 0
+  return 1
+}
+
 run_limited() {
   if have timeout; then
     timeout "${CODEX_IMAGE_PASTE_TIMEOUT:-4}" "$@"
@@ -301,6 +325,28 @@ if [ "$ext" = "bmp" ]; then
     echo "clipboard image is BMP, but no local converter could produce PNG" >&2
     exit 1
   fi
+fi
+
+if is_local_host; then
+  case "$REMOTE_DIR" in
+    /*) local_dir_abs="$REMOTE_DIR" ;;
+    "~/"*) local_dir_abs="$HOME/${REMOTE_DIR#~/}" ;;
+    *) local_dir_abs="$HOME/$REMOTE_DIR" ;;
+  esac
+
+  mkdir -p "$local_dir_abs"
+  chmod 700 "$local_dir_abs" 2>/dev/null || true
+  base="clip-$(date +%Y%m%d-%H%M%S)-$$.$ext"
+  local_path="$local_dir_abs/$base"
+  umask 077
+  cp "$local_file" "$local_path"
+
+  if [ "$COPY_PATH" -eq 1 ]; then
+    copy_text_clipboard "$local_path" || true
+  fi
+
+  printf '%s\n' "$local_path"
+  exit 0
 fi
 
 remote_home="$(ssh -o BatchMode=yes -o ClearAllForwardings=yes "$HOST" 'printf %s "$HOME"')"

@@ -4,7 +4,8 @@ local config = wezterm.config_builder()
 local wsl_distro = 'Ubuntu'
 
 local shell_command = 'export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; shell="$(command -v zsh 2>/dev/null || command -v bash 2>/dev/null || printf /bin/sh)"; export SHELL="$shell"; exec "$shell" -l'
-local tmux_command = 'export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; shell="$(command -v zsh 2>/dev/null || command -v bash 2>/dev/null || printf /bin/sh)"; export SHELL="$shell"; if command -v tmux >/dev/null 2>&1; then exec tmux new-session -A -s main; fi; exec "$shell" -l'
+local tmux_command = 'export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; shell="$(command -v zsh 2>/dev/null || command -v bash 2>/dev/null || printf /bin/sh)"; export SHELL="$shell"; if command -v tmux >/dev/null 2>&1; then tmux new-session -A -s main; fi; exec "$shell" -l'
+local spark_context_prefix = "printf '\\033]1337;SetUserVar=FHH_HOST=c3Bhcms=\\a'; printf '\\033]1337;SetUserVar=FHH_IMAGE_PASTE_HOST=c3Bhcms=\\a'; "
 
 local function wsl_command_args(...)
   return {
@@ -37,7 +38,7 @@ local function spark_args(command)
     'ssh',
     '-t',
     'spark',
-    command,
+    spark_context_prefix .. command,
   }
 end
 
@@ -82,15 +83,21 @@ config.launch_menu = {
 
 package.path = package.path .. ';' .. wezterm.config_dir .. '/?.lua'
 local remote_image_paste = require 'remote-image-paste'
-remote_image_paste.apply(config, {
-  host = 'spark',
+config.keys = config.keys or {}
+table.insert(config.keys, {
   key = 'v',
   mods = 'CTRL',
+  action = wezterm.action.PasteFrom 'Clipboard',
 })
-remote_image_paste.apply(config, {
-  host = 'spark',
+table.insert(config.keys, {
   key = 'v',
   mods = 'CTRL|SHIFT',
+  action = wezterm.action.PasteFrom 'Clipboard',
+})
+remote_image_paste.apply(config, {
+  wsl_distro = wsl_distro,
+  key = 'v',
+  mods = 'CTRL|ALT',
 })
 
 return config

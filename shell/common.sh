@@ -103,6 +103,38 @@ whereami() {
   printf '%s\n' "$DOTFILES_MACHINE"
 }
 
+__dotfiles_wezterm_set_user_var() {
+  # Emit when we can see WezTerm directly, or when inside tmux: tmux overrides
+  # TERM_PROGRAM=tmux and strips WEZTERM_PANE over SSH, so the only reliable
+  # signal from a remote tmux pane is $TMUX. The passthrough form below reaches
+  # the outer WezTerm and is a no-op in terminals that don't grok OSC 1337.
+  [ "${TERM_PROGRAM:-}" = "WezTerm" ] || [ -n "${WEZTERM_PANE:-}" ] || [ -n "${TMUX:-}" ] || return 0
+  dotfiles_have_linux base64 || return 0
+
+  local name="$1"
+  local value="$2"
+  local encoded
+
+  encoded="$(printf '%s' "$value" | base64 | tr -d '\r\n')"
+  if [ -n "${TMUX:-}" ]; then
+    printf '\033Ptmux;\033\033]1337;SetUserVar=%s=%s\a\033\\' "$name" "$encoded"
+  else
+    printf '\033]1337;SetUserVar=%s=%s\a' "$name" "$encoded"
+  fi
+}
+
+__dotfiles_update_wezterm_context() {
+  local image_paste_host
+
+  case "$DOTFILES_MACHINE" in
+    spark) image_paste_host="spark" ;;
+    *) image_paste_host="local" ;;
+  esac
+
+  __dotfiles_wezterm_set_user_var FHH_HOST "$DOTFILES_MACHINE"
+  __dotfiles_wezterm_set_user_var FHH_IMAGE_PASTE_HOST "$image_paste_host"
+}
+
 spark() {
   if dotfiles_is_spark; then
     printf 'already on spark\n'
@@ -114,7 +146,7 @@ spark() {
 ts() {
   local remote_command ssh_command
 
-  remote_command='export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; export TERM=xterm-256color; exec tmux -2 new-session -A -s main'
+  remote_command='printf "\033]1337;SetUserVar=FHH_HOST=c3Bhcms=\a"; printf "\033]1337;SetUserVar=FHH_IMAGE_PASTE_HOST=c3Bhcms=\a"; export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; export TERM=xterm-256color; exec tmux -2 new-session -A -s main'
 
   if dotfiles_is_spark; then
     if [ -n "${TMUX:-}" ]; then
@@ -124,26 +156,35 @@ ts() {
       tmux new-session -A -s main
     fi
   elif [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
+    __dotfiles_wezterm_set_user_var FHH_HOST spark
+    __dotfiles_wezterm_set_user_var FHH_IMAGE_PASTE_HOST spark
     ssh_command="ssh -tt -o ClearAllForwardings=yes spark $(printf '%q' "$remote_command")"
     tmux detach-client -E "$ssh_command"
   else
+    __dotfiles_wezterm_set_user_var FHH_HOST spark
+    __dotfiles_wezterm_set_user_var FHH_IMAGE_PASTE_HOST spark
     ssh -tt -o ClearAllForwardings=yes spark "$remote_command"
   fi
 }
 
 tsp() {
-  local target_session
-
   if [ -n "${TMUX:-}" ]; then
-    tmux choose-tree -Zw
-  else
-    target_session="$(tmux list-sessions -F '#{session_name}' 2>/dev/null | sed -n '1p')"
-    if [ -z "$target_session" ]; then
-      target_session="main"
-      tmux new-session -d -s "$target_session"
+    if dotfiles_have_linux fzf; then
+      tmux display-popup -E -w 88% -h 78% -d "#{pane_current_path}" -T "tmux sessions" \
+        'session="$(tmux list-sessions | sed "s/:.*//" | fzf --prompt="tmux session> " --height=100% --layout=reverse --border=none)"; [ -n "$session" ] && tmux switch-client -t "$session"'
+    elif dotfiles_have_linux sesh; then
+      tmux display-popup -E -w 88% -h 78% -d "#{pane_current_path}" -T "sesh" \
+        "sesh picker --icons --hide-duplicates --separator-aware"
+    else
+      tmux choose-tree -Zs
     fi
-    tmux set-hook -g client-attached 'set-hook -gu client-attached; choose-tree -Zw'
-    exec tmux -2 attach-session -t "$target_session"
+  else
+    if tmux has-session >/dev/null 2>&1; then
+      tmux -2 attach-session \; choose-tree -Zs
+      return
+    fi
+
+    tmux -2 new-session -s main
   fi
 }
 
@@ -249,6 +290,12 @@ __dotfiles_refresh_tmux_display_env() {
 if [ -n "${ZSH_VERSION:-}" ]; then
   autoload -Uz add-zsh-hook
   add-zsh-hook precmd __dotfiles_refresh_tmux_display_env
+  add-zsh-hook precmd __dotfiles_update_wezterm_context
+elif [ -n "${BASH_VERSION:-}" ]; then
+  case ";${PROMPT_COMMAND:-};" in
+    *";__dotfiles_update_wezterm_context;"*) ;;
+    *) PROMPT_COMMAND="__dotfiles_update_wezterm_context${PROMPT_COMMAND:+; $PROMPT_COMMAND}" ;;
+  esac
 fi
 
 if dotfiles_have_linux zoxide; then

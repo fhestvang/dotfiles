@@ -114,3 +114,15 @@ fi
 
 # Sandcastle Control Center
 alias scc='node "$HOME/github/fos-workbench/scripts/sandcastle-control-center.mjs"'
+
+# Local k3s tutorial cluster.
+if [ -z "${KUBECONFIG:-}" ] && [ -r "$HOME/.kube/fos-workbench-k3s.yaml" ]; then
+  export KUBECONFIG="$HOME/.kube/fos-workbench-k3s.yaml"
+fi
+
+# bun completions
+[ -s "/home/fhestvang/.bun/_bun" ] && source "/home/fhestvang/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"

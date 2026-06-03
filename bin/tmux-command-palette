@@ -4,7 +4,7 @@ set -euo pipefail
 fzf_bin="${FZF_BIN:-fzf}"
 open_on_laptop="$HOME/github/dotfiles/bin/open-on-laptop"
 markdown_preview="$HOME/github/dotfiles/bin/markdown-preview-browser"
-url_picker="$HOME/.tmux/plugins/tmux-fzf-url/fzf-url.sh"
+url_picker="$HOME/github/dotfiles/bin/tmux-fzf-url"
 palette_file="${TMUX_COMMAND_PALETTE_FILE:-$HOME/.config/tmux/command-palette.tsv}"
 target_pane="${TMUX_PALETTE_PANE:-${TMUX_PANE:-}}"
 target_window="${TMUX_PALETTE_WINDOW:-}"

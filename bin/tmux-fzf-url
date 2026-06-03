@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+limit="${1:-2000}"
+open_cmd="${2:-$HOME/github/dotfiles/bin/open-on-laptop}"
+copy_cmd="${3:-}"
+custom_pat="${4:-}"
+custom_sub="${5:-}"
+
+plugin_manager_path="${TMUX_PLUGIN_MANAGER_PATH:-}"
+if [ -z "$plugin_manager_path" ] && command -v tmux >/dev/null 2>&1; then
+  plugin_manager_path="$(
+    tmux show-environment -g TMUX_PLUGIN_MANAGER_PATH 2>/dev/null |
+      sed -n 's/^TMUX_PLUGIN_MANAGER_PATH=//p'
+  )"
+fi
+
+find_fzf_url() {
+  local dir
+
+  for dir in \
+    "$plugin_manager_path" \
+    "$HOME/.config/tmux/plugins" \
+    "$HOME/.tmux/plugins"
+  do
+    [ -n "$dir" ] || continue
+    dir="${dir%/}"
+    if [ -x "$dir/tmux-fzf-url/fzf-url.sh" ]; then
+      printf '%s\n' "$dir/tmux-fzf-url/fzf-url.sh"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+display_error() {
+  local message="$1"
+  if command -v tmux >/dev/null 2>&1 && [ -n "${TMUX:-}" ]; then
+    tmux display-message "$message" 2>/dev/null || true
+  else
+    printf '%s\n' "$message" >&2
+  fi
+}
+
+script="$(find_fzf_url || true)"
+if [ -z "$script" ]; then
+  display_error "tmux-fzf-url not installed; run dotfiles install or TPM install"
+  exit 1
+fi
+
+exec "$script" "$limit" "$open_cmd" "$copy_cmd" "$custom_pat" "$custom_sub"

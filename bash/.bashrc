@@ -58,3 +58,8 @@ if ! command -v starship >/dev/null 2>&1; then
   DOTFILES_PROMPT_HOST="$("$HOME/github/dotfiles/bin/prompt-host" 2>/dev/null || hostname -s)"
   PS1='\[\033[0;36m\]${DOTFILES_PROMPT_HOST}\[\033[0m\] \[\033[0;32m\]\w\[\033[0m\] \$ '
 fi
+
+# Local k3s tutorial cluster.
+if [ -z "${KUBECONFIG:-}" ] && [ -r "$HOME/.kube/fos-workbench-k3s.yaml" ]; then
+  export KUBECONFIG="$HOME/.kube/fos-workbench-k3s.yaml"
+fi

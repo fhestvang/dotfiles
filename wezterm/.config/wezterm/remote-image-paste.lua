@@ -3,8 +3,36 @@ local act = wezterm.action
 
 local M = {}
 
-local function build_command(opts)
-  local host = opts.host or os.getenv 'CODEX_IMAGE_PASTE_HOST' or 'spark'
+local function normalize_host(host)
+  if not host or host == '' then
+    return nil
+  end
+  local lower = host:lower()
+  if lower == 'laptop' or lower == 'localhost' or lower == '127.0.0.1' then
+    return 'local'
+  end
+  return host
+end
+
+local function resolve_host(opts, pane)
+  local vars = {}
+  if pane and pane.get_user_vars then
+    vars = pane:get_user_vars() or {}
+  end
+
+  return normalize_host(
+    opts.host
+      or vars.FHH_IMAGE_PASTE_HOST
+      or vars.FHH_HOST
+      or vars.WEZTERM_HOST
+      or os.getenv 'CODEX_IMAGE_PASTE_HOST'
+      or opts.default_host
+      or 'local'
+  )
+end
+
+local function build_command(opts, pane)
+  local host = resolve_host(opts, pane)
   local remote_dir = opts.remote_dir or os.getenv 'CODEX_IMAGE_PASTE_REMOTE_DIR'
   local configured = opts.command or os.getenv 'CODEX_IMAGE_PASTE_COMMAND'
 
@@ -32,6 +60,8 @@ local function build_command(opts)
       script,
       '-HostName',
       host,
+      '-WslDistro',
+      opts.wsl_distro or os.getenv 'CODEX_IMAGE_PASTE_WSL_DISTRO' or 'Ubuntu',
     }
     if remote_dir and remote_dir ~= '' then
       table.insert(command, '-RemoteDir')
@@ -53,7 +83,7 @@ end
 function M.action(opts)
   opts = opts or {}
   return wezterm.action_callback(function(window, pane)
-    local ok, stdout, stderr = wezterm.run_child_process(build_command(opts))
+    local ok, stdout, stderr = wezterm.run_child_process(build_command(opts, pane))
 
     if ok and stdout then
       local path = stdout:gsub('%s+$', '')
@@ -75,7 +105,6 @@ function M.action(opts)
       message = stderr:gsub('%s+$', '')
     end
     window:toast_notification('Remote image paste failed', message, nil, 6000)
-    window:perform_action(act.PasteFrom 'Clipboard', pane)
   end)
 end
 

@@ -60,4 +60,4 @@ for candidate in "$@"; do
 done
 
 notify "No URL under mouse"
-exit 1
+exit 0

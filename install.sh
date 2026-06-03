@@ -5,6 +5,7 @@ DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_ROOT="${DOTFILES_BACKUP_DIR:-$HOME/.dotfiles-backup}"
 BACKUP_DIR="$BACKUP_ROOT/$(date +%Y%m%d-%H%M%S)"
 STOW_PACKAGES=(bash zsh git readline tmux starship atuin ghostty wezterm)
+MANAGED_BIN_DIR="$HOME/bin"
 STOW_TARGETS=(
   "$HOME/.bashrc"
   "$HOME/.bash_profile"
@@ -398,13 +399,34 @@ is_wsl() {
   grep -qiE '(microsoft|wsl)' /proc/sys/kernel/osrelease 2>/dev/null
 }
 
+windows_powershell() {
+  local candidate
+
+  if command -v powershell.exe >/dev/null 2>&1; then
+    command -v powershell.exe
+    return
+  fi
+
+  for candidate in \
+    /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe \
+    /mnt/c/Program\ Files/PowerShell/7/pwsh.exe
+  do
+    if [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+
+  return 1
+}
+
 windows_home_from_wsl() {
-  have powershell.exe || return 1
   have wslpath || return 1
 
-  local win_home
+  local powershell win_home
+  powershell="$(windows_powershell)" || return 1
   win_home="$(
-    powershell.exe -NoProfile -NonInteractive \
+    "$powershell" -NoProfile -NonInteractive \
       -Command '[Console]::Out.Write([Environment]::GetFolderPath("UserProfile"))' \
       2>/dev/null | tr -d '\r'
   )"
@@ -430,6 +452,29 @@ install_wezterm_config() {
       echo "skip: could not resolve Windows home for WezTerm config"
     fi
   fi
+}
+
+install_agent_runtime_configs() {
+  local toolkit_dir="${FHH_TOOLKIT_DIR:-$HOME/github/fhh-toolkit}"
+  local script
+
+  if [ ! -d "$toolkit_dir" ]; then
+    echo "skip: fhh-toolkit not found for agent runtime sync ($toolkit_dir)"
+    return
+  fi
+
+  for script in \
+    "$toolkit_dir/runtimes/codex/sync-config.sh" \
+    "$toolkit_dir/runtimes/claude/sync-config.sh"
+  do
+    if [ -x "$script" ]; then
+      if ! "$script"; then
+        echo "warn: agent runtime sync failed: $script" >&2
+      fi
+    else
+      echo "skip: agent runtime sync missing: $script"
+    fi
+  done
 }
 
 install_packages() {
@@ -514,13 +559,43 @@ install_stow_packages() {
   stow -d "$DOTFILES_DIR" -t "$HOME" --no-folding "${STOW_PACKAGES[@]}"
 }
 
+install_bin_scripts() {
+  local source target resolved
+
+  mkdir -p "$MANAGED_BIN_DIR"
+  for source in "$DOTFILES_DIR"/bin/*; do
+    [ -f "$source" ] || continue
+    target="$MANAGED_BIN_DIR/$(basename "$source")"
+
+    if [ -L "$target" ]; then
+      resolved="$(readlink -f "$target" 2>/dev/null || true)"
+      if [ "$resolved" = "$source" ]; then
+        echo "ok: $target already managed"
+        continue
+      fi
+      backup_path "$target"
+    elif [ -e "$target" ]; then
+      if [ -f "$target" ] && cmp -s "$source" "$target"; then
+        rm "$target"
+      else
+        backup_path "$target"
+      fi
+    fi
+
+    ln -s "$source" "$target"
+    echo "link: $target -> $source"
+  done
+}
+
 if [ "$INSTALL_PACKAGES" -eq 1 ]; then
   install_packages
 fi
 
 install_zsh_plugins
 install_stow_packages
+install_bin_scripts
 install_wezterm_config
+install_agent_runtime_configs
 install_tmux_plugins
 
 if [ "$SET_ZSH" -eq 1 ]; then

@@ -90,6 +90,39 @@ To reload the current pane:
 exec zsh -l
 ```
 
+## Agent Runtime Surface
+
+Dotfiles is the machine bootstrap surface. It installs shell/editor config and,
+when `~/github/fhh-toolkit` exists, runs:
+
+```sh
+~/github/fhh-toolkit/runtimes/codex/sync-config.sh
+~/github/fhh-toolkit/runtimes/claude/sync-config.sh
+```
+
+That means laptop and Spark should get the same Codex and Claude defaults from
+the toolkit while keeping auth, caches, sessions, memories, telemetry, and
+generated hook trust state local.
+
+Canonical dev roots on both machines:
+
+```text
+~/github/fos
+~/github/fhh-toolkit
+~/github/dotfiles
+~/github/fos-workbench
+~/github/job-searching
+```
+
+`~/github/fos` and its siblings are the default work surface. Top-level clones
+such as `~/fos` or `~/fhh-toolkit` are transition clones unless a task
+explicitly names them.
+
+Repo-level `AGENTS.md`, `CLAUDE.md`, `.codex/`, and `.claude/` files should
+stay in the owning repo because they carry project contracts and repo-specific
+hooks. Shared skills, routing, and runtime defaults belong in
+`~/github/fhh-toolkit`; dotfiles only installs/syncs them onto each machine.
+
 ## Syncing Spark
 
 From the laptop:
