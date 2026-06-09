@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""Classify how an agent turn ended, for the tmux status indicator.
+
+Given a transcript path (a JSONL file, or a directory whose newest *.jsonl is
+used), inspect the LAST assistant message and decide:
+
+    blocked  -> the agent ended by asking the user a question / needs help
+    done     -> the agent finished normally
+
+The signal is intentionally simple and uniform across harnesses: if the last
+assistant message ends with a question mark (ignoring trailing markdown and
+closing punctuation), the agent is waiting on the user. Anything unparseable
+falls back to "done" so the indicator never gets stuck on "?".
+
+Handles three transcript shapes:
+  - Claude Code / pi.dev : {"type": "assistant"|"message",
+                            "message": {"role": "assistant",
+                                        "content": [{"type": "text", ...}]}}
+  - Codex                : {"payload": {"type": "agent_message"|"message", ...}}
+"""
+
+import glob
+import json
+import os
+import sys
+
+
+def newest_jsonl(directory):
+    files = glob.glob(os.path.join(directory, "**", "*.jsonl"), recursive=True)
+    if not files:
+        return None
+    return max(files, key=os.path.getmtime)
+
+
+def extract_text(content):
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, dict) and block.get("type") in ("text", "output_text"):
+                text = block.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "".join(parts)
+    return ""
+
+
+def last_assistant_text(path):
+    last = ""
+    try:
+        with open(path, "r", errors="ignore") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    continue
+                if not isinstance(obj, dict):
+                    continue
+
+                # Codex rollout format.
+                payload = obj.get("payload")
+                if isinstance(payload, dict):
+                    ptype = payload.get("type")
+                    if ptype == "agent_message":
+                        text = payload.get("message") or payload.get("text") or ""
+                        if isinstance(text, str) and text.strip():
+                            last = text
+                    elif ptype == "message" and payload.get("role") == "assistant":
+                        text = extract_text(payload.get("content"))
+                        if text.strip():
+                            last = text
+                    continue
+
+                # Claude Code / pi.dev format.
+                message = obj.get("message")
+                if isinstance(message, dict) and message.get("role") == "assistant":
+                    text = extract_text(message.get("content"))
+                    if text.strip():
+                        last = text
+                elif obj.get("type") == "assistant" and isinstance(message, dict):
+                    text = extract_text(message.get("content"))
+                    if text.strip():
+                        last = text
+    except Exception:
+        return ""
+    return last
+
+
+def is_question(text):
+    if not text:
+        return False
+    # Drop trailing whitespace, then any closing markdown / punctuation that can
+    # sit after the real final character (e.g. `...help?` or "...right?").
+    stripped = text.rstrip().rstrip(" \t\r\n*_`\"')]}>")
+    return stripped.endswith("?")
+
+
+def main():
+    if len(sys.argv) < 2 or not sys.argv[1]:
+        print("done")
+        return
+    arg = sys.argv[1]
+    path = newest_jsonl(arg) if os.path.isdir(arg) else arg
+    if not path or not os.path.isfile(path):
+        print("done")
+        return
+    print("blocked" if is_question(last_assistant_text(path)) else "done")
+
+
+if __name__ == "__main__":
+    main()

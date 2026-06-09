@@ -59,6 +59,7 @@ case "$action" in
     ;;
   blocked)
     set_state blocked
+    ring_terminal_bell
     ;;
   done)
     set_state done
