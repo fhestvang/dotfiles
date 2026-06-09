@@ -285,8 +285,8 @@ Atuin:
 
 Aliases:
 
-- `t` attaches to or creates the main tmux session.
-- `ts` attaches to or creates the main tmux session on `spark`.
+- `t` attaches to a per-terminal grouped tmux session backed by `main`.
+- `ts` does the same on `spark`.
 - `tsp` opens the tmux session/window picker on the current machine.
 - `cc` runs `claude --continue`.
 - `gs`, `gd`, `gco`, `gb`, `ga`, `gpl`, `gps`, and `glog` cover common Git flows.

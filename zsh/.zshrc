@@ -108,6 +108,10 @@ if [ -r "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ];
   . "$ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
 fi
 
+if command -v fzf >/dev/null 2>&1; then
+  eval "$(fzf --zsh)"
+fi
+
 if [ -s "$HOME/.bun/_bun" ]; then
   . "$HOME/.bun/_bun"
 fi
