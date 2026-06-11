@@ -131,7 +131,9 @@ t() {
   if [ -n "${TMUX:-}" ]; then
     tmux switch-client -t "$target_session"
   else
-    exec tmux -2 attach-session -t "$target_session"
+    # no exec: detaching tmux returns to this spark shell instead of closing
+    # the SSH session and dropping all the way back to the laptop.
+    tmux -2 attach-session -t "$target_session"
   fi
 }
 
@@ -178,7 +180,9 @@ spark() {
 ts() {
   local remote_command ssh_command
 
-  remote_command='printf "\033]1337;SetUserVar=FHH_HOST=c3Bhcms=\a"; printf "\033]1337;SetUserVar=FHH_IMAGE_PASTE_HOST=c3Bhcms=\a"; export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; export TERM=xterm-256color; exec tmux -2 new-session -A -s main'
+  # no exec on tmux: after detach, fall through to a spark login shell rather
+  # than ending the SSH command and bouncing back to the laptop.
+  remote_command='printf "\033]1337;SetUserVar=FHH_HOST=c3Bhcms=\a"; printf "\033]1337;SetUserVar=FHH_IMAGE_PASTE_HOST=c3Bhcms=\a"; export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; export TERM=xterm-256color; shell="$(command -v zsh 2>/dev/null || command -v bash 2>/dev/null || printf /bin/sh)"; export SHELL="$shell"; tmux -2 new-session -A -s main; exec "$shell" -l'
 
   if dotfiles_is_spark; then
     t
@@ -202,7 +206,7 @@ tsp() {
       tmux display-popup -E -w 88% -h 78% -d "#{pane_current_path}" -T "tmux sessions" \
         'session="$(tmux list-sessions -F "#{session_name}" | fzf --prompt="tmux session> " --height=100% --layout=reverse --border=none)" || exit; [ -n "$session" ] || exit; tmux switch-client -t "$session"'
     else
-      tmux display-message 'tsp: install fzf for grouped session switching'
+      tmux display-message 'tsp: install fzf for session switching'
     fi
   else
     if dotfiles_have_linux fzf; then
@@ -212,7 +216,9 @@ tsp() {
       base=main
     fi
     target_session="$(dotfiles_tmux_client_session "$base")"
-    exec tmux -2 attach-session -t "$target_session"
+    # no exec: detaching tmux returns to this spark shell instead of closing
+    # the SSH session and dropping all the way back to the laptop.
+    tmux -2 attach-session -t "$target_session"
   fi
 }
 

@@ -4,7 +4,7 @@ local config = wezterm.config_builder()
 local wsl_distro = 'Ubuntu'
 
 local shell_command = 'export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; shell="$(command -v zsh 2>/dev/null || command -v bash 2>/dev/null || printf /bin/sh)"; export SHELL="$shell"; exec "$shell" -l'
-local tmux_command = 'export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; shell="$(command -v zsh 2>/dev/null || command -v bash 2>/dev/null || printf /bin/sh)"; export SHELL="$shell"; if command -v tmux >/dev/null 2>&1; then base="${FHH_TMUX_BASE:-main}"; exec tmux -2 new-session -A -s "$base"; fi; exec "$shell" -l'
+local tmux_command = 'export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; shell="$(command -v zsh 2>/dev/null || command -v bash 2>/dev/null || printf /bin/sh)"; export SHELL="$shell"; if command -v tmux >/dev/null 2>&1; then base="${FHH_TMUX_BASE:-main}"; tmux -2 new-session -A -s "$base"; fi; exec "$shell" -l'
 local spark_context_prefix = "printf '\\033]1337;SetUserVar=FHH_HOST=c3Bhcms=\\a'; printf '\\033]1337;SetUserVar=FHH_IMAGE_PASTE_HOST=c3Bhcms=\\a'; "
 
 local function wsl_command_args(...)
