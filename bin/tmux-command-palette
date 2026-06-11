@@ -473,7 +473,7 @@ run_action() {
       tmux_split -v
       ;;
     tmux.choose-tree)
-      tmux choose-tree -Zs
+      "$HOME/github/dotfiles/bin/tmux-session-picker"
       ;;
     tmux.search-keys)
       tmux list-keys -N |

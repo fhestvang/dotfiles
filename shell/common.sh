@@ -103,17 +103,25 @@ whereami() {
 }
 
 dotfiles_tmux_client_session() {
-  local base="${1:-main}" tty_name session_name
+  # One plain session per base name, shared by every terminal. No per-tty
+  # grouped sessions: grouping let sibling sessions diverge on current-window,
+  # which (with focus-events) made Win+Shift+S screenshot the wrong window.
+  local base="${1:-main}"
 
-  tty_name="$(tty 2>/dev/null || printf 'client-%s' "$$")"
-  tty_name="${tty_name#/dev/}"
-  tty_name="$(printf '%s' "$tty_name" | tr -c '[:alnum:]_.-' '-')"
-  [ -n "$tty_name" ] || tty_name="client-$$"
-
-  session_name="${base}-${tty_name}"
   tmux has-session -t "$base" 2>/dev/null || tmux new-session -d -s "$base"
-  tmux has-session -t "$session_name" 2>/dev/null || tmux new-session -d -t "$base" -s "$session_name"
-  printf '%s\n' "$session_name"
+  printf '%s\n' "$base"
+}
+
+dotfiles_tmux_base_sessions() {
+  tmux list-sessions -F '#{session_name}	#{session_group}' |
+    awk '
+      {
+        name=$1
+        group=$2
+        base=(group == "" ? name : group)
+        if (!seen[base]++) print base
+      }
+    '
 }
 
 t() {
@@ -123,7 +131,9 @@ t() {
   if [ -n "${TMUX:-}" ]; then
     tmux switch-client -t "$target_session"
   else
-    exec tmux -2 attach-session -t "$target_session"
+    # no exec: detaching tmux returns to this spark shell instead of closing
+    # the SSH session and dropping all the way back to the laptop.
+    tmux -2 attach-session -t "$target_session"
   fi
 }
 
@@ -170,7 +180,9 @@ spark() {
 ts() {
   local remote_command ssh_command
 
-  remote_command='printf "\033]1337;SetUserVar=FHH_HOST=c3Bhcms=\a"; printf "\033]1337;SetUserVar=FHH_IMAGE_PASTE_HOST=c3Bhcms=\a"; export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; export TERM=xterm-256color; base=main; tty_name="$(tty 2>/dev/null || printf client-$$)"; tty_name="${tty_name#/dev/}"; tty_name="$(printf "%s" "$tty_name" | tr -c "[:alnum:]_.-" "-")"; [ -n "$tty_name" ] || tty_name="client-$$"; session_name="$base-$tty_name"; tmux has-session -t "$base" 2>/dev/null || tmux new-session -d -s "$base"; tmux has-session -t "$session_name" 2>/dev/null || tmux new-session -d -t "$base" -s "$session_name"; exec tmux -2 attach-session -t "$session_name"'
+  # no exec on tmux: after detach, fall through to a spark login shell rather
+  # than ending the SSH command and bouncing back to the laptop.
+  remote_command='printf "\033]1337;SetUserVar=FHH_HOST=c3Bhcms=\a"; printf "\033]1337;SetUserVar=FHH_IMAGE_PASTE_HOST=c3Bhcms=\a"; export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; export TERM=xterm-256color; shell="$(command -v zsh 2>/dev/null || command -v bash 2>/dev/null || printf /bin/sh)"; export SHELL="$shell"; tmux -2 new-session -A -s main; exec "$shell" -l'
 
   if dotfiles_is_spark; then
     t
@@ -187,19 +199,26 @@ ts() {
 }
 
 tsp() {
+  local base target_session
+
   if [ -n "${TMUX:-}" ]; then
     if dotfiles_have_linux fzf; then
       tmux display-popup -E -w 88% -h 78% -d "#{pane_current_path}" -T "tmux sessions" \
-        'session="$(tmux list-sessions | sed "s/:.*//" | fzf --prompt="tmux session> " --height=100% --layout=reverse --border=none)"; [ -n "$session" ] && tmux switch-client -t "$session"'
-    elif dotfiles_have_linux sesh; then
-      tmux display-popup -E -w 88% -h 78% -d "#{pane_current_path}" -T "sesh" \
-        "sesh picker --icons --hide-duplicates --separator-aware"
+        'session="$(tmux list-sessions -F "#{session_name}" | fzf --prompt="tmux session> " --height=100% --layout=reverse --border=none)" || exit; [ -n "$session" ] || exit; tmux switch-client -t "$session"'
     else
-      tmux choose-tree -Zs
+      tmux display-message 'tsp: install fzf for session switching'
     fi
   else
-    target_session="$(dotfiles_tmux_client_session main)"
-    exec tmux -2 attach-session -t "$target_session" \; choose-tree -Zs
+    if dotfiles_have_linux fzf; then
+      base="$(dotfiles_tmux_base_sessions | fzf --prompt='tmux session> ' --height=100% --layout=reverse --border=none)" || return
+      [ -n "$base" ] || return
+    else
+      base=main
+    fi
+    target_session="$(dotfiles_tmux_client_session "$base")"
+    # no exec: detaching tmux returns to this spark shell instead of closing
+    # the SSH session and dropping all the way back to the laptop.
+    tmux -2 attach-session -t "$target_session"
   fi
 }
 
@@ -315,9 +334,9 @@ fi
 
 if dotfiles_have_linux zoxide; then
   if [ -n "${ZSH_VERSION:-}" ]; then
-    eval "$(zoxide init zsh)"
+    eval "$(zoxide init zsh --cmd cd)"
   else
-    eval "$(zoxide init bash)"
+    eval "$(zoxide init bash --cmd cd)"
   fi
 fi
 
