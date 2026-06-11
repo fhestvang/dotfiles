@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Sync this repo's WezTerm config to the Windows-side file that Windows WezTerm
+# actually reads. Needed because that file is a standalone COPY, not a symlink:
+# the WSL/Windows boundary plus Developer Mode being off make a symlink unsafe
+# (it would point at an unreachable \\wsl$ path and break config loading).
+#
+# Run on the LAPTOP, in WSL, after pulling dotfiles changes. Then FULLY quit and
+# relaunch WezTerm (front_end only binds at startup; a config reload won't apply it).
+#
+# See docs/wezterm-screenshot-wrong-pane.md for why this exists.
+set -euo pipefail
+
+repo_cfg="$(cd "$(dirname "$0")/.." && pwd)/wezterm/.config/wezterm/wezterm.lua"
+[ -f "$repo_cfg" ] || { echo "repo config not found: $repo_cfg" >&2; exit 1; }
+
+command -v cmd.exe >/dev/null 2>&1 || {
+  echo "this script must run in WSL on the Windows laptop (cmd.exe not found)" >&2
+  exit 1
+}
+
+win_userprofile="$(cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')"
+win_home="$(wslpath "$win_userprofile")"
+dest="$win_home/.config/wezterm/wezterm.lua"
+
+mkdir -p "$(dirname "$dest")"
+if [ -f "$dest" ] && ! cmp -s "$repo_cfg" "$dest"; then
+  cp "$dest" "$dest.bak-$(date +%Y%m%d-%H%M%S)"
+fi
+cp "$repo_cfg" "$dest"
+
+echo "synced: $repo_cfg"
+echo "    ->  $dest"
+echo "Now FULLY quit and relaunch WezTerm (front_end binds at startup)."
