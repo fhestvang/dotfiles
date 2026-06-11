@@ -1,6 +1,15 @@
 local wezterm = require 'wezterm'
 local config = wezterm.config_builder()
 
+-- Win+Shift+S was capturing a STALE frame (the tmux session/window from before
+-- the last switch) because the default WebGpu front_end only presents a new GPU
+-- frame on focus; when the snip overlay steals focus, DWM composites WezTerm's
+-- previous frame. 'Software' repaints synchronously via GDI so the desktop image
+-- the snipper freezes is always current. (Use 'OpenGL' instead if you want GPU
+-- acceleration back and it still captures correctly.) See dotfiles PR #1 follow-up.
+config.front_end = 'Software'
+config.color_scheme = 'Catppuccin Mocha'
+
 local wsl_distro = 'Ubuntu'
 
 local shell_command = 'export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; shell="$(command -v zsh 2>/dev/null || command -v bash 2>/dev/null || printf /bin/sh)"; export SHELL="$shell"; exec "$shell" -l'
