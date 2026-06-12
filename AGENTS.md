@@ -35,3 +35,10 @@ Run focused checks after changes:
 bash -n install.sh sync.sh
 git diff --check
 ```
+
+## Task creation
+
+This repo has no active backlog. If real work queues up, adopt the FHH
+task-creation standard (GitHub Issues + triage labels + Sandcastle Issue
+Loop): `../fhh-toolkit/knowledge/playbooks/sandcastle-issue-loop.md`. Do not
+invent a local ticket or planning system.
