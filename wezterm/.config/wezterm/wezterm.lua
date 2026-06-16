@@ -65,9 +65,17 @@ local function spark_args(command)
   }
 end
 
-config.hide_tab_bar_if_only_one_tab = true
-config.use_fancy_tab_bar = false
-config.window_decorations = 'TITLE | RESIZE'
+-- Title bar: draw WezTerm's own bar instead of the native Windows one. The
+-- native bar ('TITLE') is painted white by Windows in light mode and ignores
+-- window_frame colours, which is why the top bar showed up white. With
+-- INTEGRATED_BUTTONS WezTerm renders the bar itself (min/max/close folded into
+-- the tab bar) and honours window_frame's #1e1e2e below, so the bar matches the
+-- terminal background. The fancy tab bar must be on for the integrated bar to
+-- render, and it must not auto-hide on a single tab, or the bar (and its
+-- buttons) would disappear under tmux's always-single tab.
+config.hide_tab_bar_if_only_one_tab = false
+config.use_fancy_tab_bar = true
+config.window_decorations = 'INTEGRATED_BUTTONS | RESIZE'
 config.window_frame = {
   active_titlebar_bg = '#1e1e2e',
   inactive_titlebar_bg = '#1e1e2e',
