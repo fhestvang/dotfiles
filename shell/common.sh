@@ -7,6 +7,11 @@ fi
 DOTFILES_MACHINE="$("$HOME/github/dotfiles/bin/prompt-host" 2>/dev/null || hostname -s 2>/dev/null || printf local)"
 export DOTFILES_MACHINE
 
+# Headroom ships anonymous usage telemetry ON by default; opt out for every
+# invocation (CLI, `headroom wrap`, the MCP server spawned by an agent launched
+# from this shell). The systemd proxy sets this in its own env file as well.
+export HEADROOM_TELEMETRY=off
+
 dotfiles_is_spark() {
   [ "$DOTFILES_MACHINE" = "spark" ]
 }
@@ -160,9 +165,12 @@ __dotfiles_wezterm_set_user_var() {
 __dotfiles_update_wezterm_context() {
   local image_paste_host
 
+  # Image pastes target spark from every machine: the agents (Claude/Codex)
+  # all run there, and a 'local' stamp from a laptop prompt poisons the pane
+  # var so later spark tmux work uploads into WSL where agents can't see it
+  # (2026-06-12 diagnosis). Override per-shell with CODEX_IMAGE_PASTE_HOST.
   case "$DOTFILES_MACHINE" in
-    spark) image_paste_host="spark" ;;
-    *) image_paste_host="local" ;;
+    *) image_paste_host="${CODEX_IMAGE_PASTE_HOST:-spark}" ;;
   esac
 
   __dotfiles_wezterm_set_user_var FHH_HOST "$DOTFILES_MACHINE"
@@ -264,7 +272,17 @@ if command -v docker >/dev/null 2>&1; then
   alias dco='docker compose'
   alias dps='docker ps'
   alias dpa='docker ps -a'
+  alias di='docker images'
   alias dx='docker exec -it'
+  alias dlf='docker logs -f'
+  alias dcup='docker compose up'
+  alias dcupb='docker compose up --build'
+  alias dcdn='docker compose down'
+  alias dcl='docker compose logs -f'
+fi
+
+if dotfiles_have_linux lazydocker; then
+  alias lzd='lazydocker'
 fi
 
 if [ -r "$HOME/.cargo/env" ]; then
@@ -333,6 +351,11 @@ elif [ -n "${BASH_VERSION:-}" ]; then
 fi
 
 if dotfiles_have_linux zoxide; then
+  # Silence the zoxide doctor: it warns because starship/mise/syntax-highlight
+  # register their hooks after zoxide, so it thinks it is not "last". For a
+  # chpwd-based dir tracker that ordering is harmless, and the nag prints on
+  # every non-interactive shell startup. See https://github.com/ajeetdsouza/zoxide#installation
+  export _ZO_DOCTOR=0
   if [ -n "${ZSH_VERSION:-}" ]; then
     eval "$(zoxide init zsh --cmd cd)"
   else
