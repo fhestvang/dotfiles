@@ -737,6 +737,14 @@ prepare_stow_target() {
 install_stow_packages() {
   local target
 
+  # Stow retired: dotfiles content is managed by chezmoi. With no packages, the
+  # prepare_stow_target loop below would back up (move away) the chezmoi-managed
+  # files and stow would recreate nothing, deleting them every run. Skip wholly.
+  if [ "${#STOW_PACKAGES[@]}" -eq 0 ]; then
+    echo "stow retired: dotfiles managed by chezmoi; skipping stow"
+    return 0
+  fi
+
   ensure_stow
   for target in "${STOW_TARGETS[@]}"; do
     prepare_stow_target "$target"
