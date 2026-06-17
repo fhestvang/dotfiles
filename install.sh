@@ -278,6 +278,44 @@ install_eza_user() {
   rm -rf "$tmp"
 }
 
+install_linear_tui_user() {
+  # Linear TUI (roeyazroel/linear-tui) — a Go binary, installed from the GitHub
+  # release rather than `go install` (no Go toolchain on the fleet). Auth is via
+  # the LINEAR_API_KEY env var, injected at launch by the shell wrapper in
+  # shell/common.sh (Bao-backed), so no key is ever written to disk here.
+  if have linear-tui; then
+    return
+  fi
+
+  local arch url tmp bin
+  case "$(uname -m)" in
+    x86_64) arch="amd64" ;;
+    aarch64|arm64) arch="arm64" ;;
+    *) echo "skip: unsupported linear-tui architecture $(uname -m)"; return ;;
+  esac
+
+  url="$(github_latest_asset_url roeyazroel/linear-tui "linux_$arch[.]tar[.]gz$" || true)"
+  if [ -z "$url" ]; then
+    echo "skip: could not find linear-tui release asset for linux_$arch"
+    return
+  fi
+
+  tmp="$(mktemp -d)"
+  if curl -fL "$url" -o "$tmp/linear-tui.tar.gz" && tar -xzf "$tmp/linear-tui.tar.gz" -C "$tmp"; then
+    bin="$(find "$tmp" -type f -name linear-tui -perm -u=x | head -n 1)"
+    if [ -n "$bin" ]; then
+      mkdir -p "$HOME/.local/bin"
+      install -m 755 "$bin" "$HOME/.local/bin/linear-tui"
+      echo "installed: user-local linear-tui -> $HOME/.local/bin/linear-tui"
+    else
+      echo "skip: linear-tui archive did not contain the binary"
+    fi
+  else
+    echo "skip: linear-tui download or extraction failed"
+  fi
+  rm -rf "$tmp"
+}
+
 install_apt_user_tools() {
   install_apt_user_binary direnv usr/bin/direnv direnv
   install_apt_user_binary fd-find usr/bin/fdfind fdfind fd
@@ -294,7 +332,7 @@ report_tool_health() {
   # are not falsely reported missing.
   local PATH="$HOME/.local/bin:$HOME/bin:$HOME/.cargo/bin:$HOME/.local/share/fzf/bin:$PATH"
   local tool missing=()
-  for tool in zsh starship fzf zoxide eza rg fd bat atuin mise direnv tmux git; do
+  for tool in zsh starship fzf zoxide eza rg fd bat atuin mise direnv tmux git linear-tui; do
     have "$tool" || missing+=("$tool")
   done
   if [ "${#missing[@]}" -eq 0 ]; then
@@ -534,7 +572,9 @@ install_agent_runtime_configs() {
 
   for script in \
     "$toolkit_dir/runtimes/codex/sync-config.sh" \
-    "$toolkit_dir/runtimes/claude/sync-config.sh"
+    "$toolkit_dir/runtimes/claude/sync-config.sh" \
+    "$toolkit_dir/runtimes/pi/sync-config.sh" \
+    "$toolkit_dir/runtimes/vibe/sync-config.sh"
   do
     if [ -x "$script" ]; then
       if ! "$script"; then
@@ -574,6 +614,7 @@ install_packages() {
   install_mise_user
   install_yazi_user
   install_atuin_user
+  install_linear_tui_user
 }
 
 ensure_stow() {

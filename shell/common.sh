@@ -259,6 +259,28 @@ laptop() {
   fi
 }
 
+# linear-tui: inject the Linear API key at launch (never stored on disk),
+# mirroring the scw-from-Bao pattern. Order: an already-exported LINEAR_API_KEY
+# wins; else read it from OpenBao (kv/projects/linear, field api_key); else a
+# materialized ~/.config/linear-tui/env; else a clear error. This is what makes
+# "push to the Idea Vault from any box" work wherever Bao or the env file reach.
+if command -v linear-tui >/dev/null 2>&1; then
+  linear-tui() {
+    local key="${LINEAR_API_KEY:-}"
+    if [ -z "$key" ] && command -v bao >/dev/null 2>&1; then
+      key="$(bao kv get -field=api_key kv/projects/linear 2>/dev/null || true)"
+    fi
+    if [ -z "$key" ] && [ -r "$HOME/.config/linear-tui/env" ]; then
+      key="$(. "$HOME/.config/linear-tui/env" 2>/dev/null; printf '%s' "${LINEAR_API_KEY:-}")"
+    fi
+    if [ -z "$key" ]; then
+      printf 'linear-tui: no LINEAR_API_KEY (Bao kv/projects/linear unreachable and no ~/.config/linear-tui/env)\n' >&2
+      return 1
+    fi
+    LINEAR_API_KEY="$key" command linear-tui "$@"
+  }
+fi
+
 if dotfiles_have_linux eza; then
   alias ls='eza -l --icons --no-permissions --no-user --total-size --sort=size'
   alias l='eza -l --icons --git -a'
