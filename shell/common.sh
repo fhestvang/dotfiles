@@ -247,6 +247,7 @@ laptop() {
 }
 
 if dotfiles_have_linux eza; then
+  alias ls='eza -l --icons --no-permissions --no-user --total-size --sort=size'
   alias l='eza -l --icons --git -a'
   alias lt='eza --tree --level=2 --long --icons --git'
 else
