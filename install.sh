@@ -587,6 +587,18 @@ install_bin_scripts() {
   done
 }
 
+install_git_hooks() {
+  local hook_src="$DOTFILES_DIR/hooks/post-commit"
+  local hook_dst="$DOTFILES_DIR/.git/hooks/post-commit"
+
+  [ -f "$hook_src" ] || return 0
+  [ -d "$DOTFILES_DIR/.git/hooks" ] || return 0
+
+  chmod +x "$hook_src"
+  ln -sfn "$hook_src" "$hook_dst"
+  echo "hook: post-commit -> $hook_src"
+}
+
 if [ "$INSTALL_PACKAGES" -eq 1 ]; then
   install_packages
 fi
@@ -594,6 +606,7 @@ fi
 install_zsh_plugins
 install_stow_packages
 install_bin_scripts
+install_git_hooks
 install_wezterm_config
 install_agent_runtime_configs
 install_tmux_plugins

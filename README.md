@@ -90,6 +90,28 @@ To reload the current pane:
 exec zsh -l
 ```
 
+## Auto fan-out on commit
+
+`install.sh` links `hooks/post-commit` into `.git/hooks/post-commit`. After a
+commit on a source-of-truth machine (`spark`/`laptop`), it runs
+`bin/dotfiles-fleet-sync`, which fans out a full `sync.sh` (`--install-packages
+--auto-zsh`) to the fleet in the background. The commit returns immediately;
+progress lands in `~/.cache/dotfiles-fleet-sync/latest.log`.
+
+The fan-out self-guards: it is a no-op on any host whose `prompt-host` label is
+not `spark` or `laptop`, so fleet nodes (which receive a mirrored `.git`) never
+fan out to their siblings. Tunables:
+
+```sh
+DOTFILES_FLEET="eigil ingvild"   # override the host list
+DOTFILES_FANOUT_PUSH=1           # also push origin during fan-out (default off)
+dotfiles-fleet-sync              # run the fan-out by hand
+```
+
+To skip the fan-out for one commit, use `git commit --no-verify` is not enough
+(post-commit always runs); instead commit with the hook disabled:
+`git -c core.hooksPath=/dev/null commit ...`.
+
 ## Agent Runtime Surface
 
 Dotfiles is the machine bootstrap surface. It installs shell/editor config and,

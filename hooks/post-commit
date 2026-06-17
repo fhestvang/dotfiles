@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# dotfiles post-commit hook — fan out to the fleet in the background.
+#
+# Tracked in the repo and linked into .git/hooks/post-commit by install.sh.
+# Detaches with setsid so the commit returns immediately. The heavy lifting and
+# the spark/laptop guard live in bin/dotfiles-fleet-sync.
+fanout="$HOME/github/dotfiles/bin/dotfiles-fleet-sync"
+[ -x "$fanout" ] || exit 0
+
+# Only announce on the source-of-truth machines (the fanout self-guards anyway).
+label="$("$HOME/github/dotfiles/bin/prompt-host" 2>/dev/null || true)"
+case "$label" in
+  spark|laptop)
+    echo "dotfiles → fleet: syncing in background (log: ~/.cache/dotfiles-fleet-sync/latest.log)"
+    ;;
+esac
+
+setsid "$fanout" </dev/null >/dev/null 2>&1 &
+exit 0
