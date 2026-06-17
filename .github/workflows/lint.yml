@@ -1,0 +1,26 @@
+name: lint
+# Guardrails for the infra repo. The class of bug that deleted the fleet's
+# dotfiles on 2026-06-18 (install.sh) is exactly what shellcheck + a shell test
+# are here to catch before a commit reaches the hourly fleet pull.
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: shellcheck (all shell scripts)
+        uses: ludeeus/action-shellcheck@master
+        with:
+          severity: warning
+      - name: gitleaks (secret scan)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: actionlint (workflow lint)
+        uses: raven-actions/actionlint@v2
