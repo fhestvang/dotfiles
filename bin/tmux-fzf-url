@@ -43,10 +43,109 @@ display_error() {
   fi
 }
 
+select_url_rows() {
+  local fzf_version fzf_options copy_bind
+  fzf_version="$(fzf --version 2>/dev/null | awk '{print $1}')"
+  fzf_options="$(tmux show -gqv '@fzf-url-fzf-options' 2>/dev/null || true)"
+  copy_bind="ctrl-y:execute-silent(printf '%s\n' {+} | awk '{print \$2}' | $_copy_cmd)"
+
+  if [ -n "$fzf_options" ]; then
+    eval "fzf-tmux $fzf_options --multi --exit-0 --no-preview --no-sort --bind $(printf '%q' "$copy_bind") --bind esc:abort,ctrl-c:abort"
+  elif version_ge "$fzf_version" "0.53.0"; then
+    fzf --tmux center,100%,50% --multi --exit-0 --no-preview --no-sort \
+      --bind "$copy_bind" \
+      --bind "esc:abort,ctrl-c:abort"
+  else
+    fzf-tmux -w 100% -h 50% --multi --exit-0 --no-preview --no-sort \
+      --bind "$copy_bind" \
+      --bind "esc:abort,ctrl-c:abort"
+  fi
+}
+
 script="$(find_fzf_url || true)"
 if [ -z "$script" ]; then
   display_error "tmux-fzf-url not installed; run dotfiles install or TPM install"
   exit 1
 fi
 
-exec "$script" "$limit" "$open_cmd" "$copy_cmd" "$custom_pat" "$custom_sub"
+__FZF_URL_TESTING=1 source "$script"
+
+if ! ensure_xre; then
+  display_error "tmux-fzf-url: xre is required but could not be installed. See https://github.com/wfxr/xre"
+  exit 1
+fi
+
+if [ -z "$limit" ]; then
+  limit="screen"
+fi
+
+if [ "$limit" = "screen" ]; then
+  content="$(tmux capture-pane -J -p -e)"
+else
+  content="$(tmux capture-pane -J -p -e -S -"$limit")"
+fi
+
+line_count="$(printf '%s\n' "$content" | wc -l | tr -d ' ')"
+cursor_y="$(tmux display-message -p '#{cursor_y}' 2>/dev/null || true)"
+pane_height="$(tmux display-message -p '#{pane_height}' 2>/dev/null || true)"
+if [[ "$line_count" =~ ^[0-9]+$ ]] &&
+  [[ "$cursor_y" =~ ^[0-9]+$ ]] &&
+  [[ "$pane_height" =~ ^[0-9]+$ ]] &&
+  [ "$pane_height" -gt 0 ]; then
+  cursor_line=$((line_count - pane_height + cursor_y + 1))
+  if [ "$cursor_line" -lt 1 ]; then
+    cursor_line=1
+  elif [ "$cursor_line" -gt "$line_count" ]; then
+    cursor_line="$line_count"
+  fi
+else
+  cursor_line="$line_count"
+fi
+
+custom_args=()
+if [ -n "$custom_pat" ]; then
+  custom_args+=(-e "$custom_pat")
+  if [ -n "$custom_sub" ]; then
+    custom_args+=(-r "$custom_sub")
+  fi
+fi
+
+items="$(
+  line_no=0
+  seq=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    line_no=$((line_no + 1))
+    matches="$(printf '%s\n' "$line" | xre_extract "${custom_args[@]}" || true)"
+    [ -n "$matches" ] || continue
+    while IFS= read -r url || [ -n "$url" ]; do
+      [ -n "$url" ] || continue
+      if [ "$line_no" -gt "$cursor_line" ]; then
+        distance=$((line_no - cursor_line))
+        side=1
+      else
+        distance=$((cursor_line - line_no))
+        side=0
+      fi
+      seq=$((seq + 1))
+      printf '%09d\t%d\t%09d\t%s\n' "$distance" "$side" "$seq" "$url"
+    done <<<"$matches"
+  done <<<"$content" |
+    sort -t $'\t' -k1,1n -k2,2n -k3,3n |
+    cut -f4- |
+    nl -w3 -s '  '
+)"
+if [ -z "$items" ]; then
+  display_error "tmux-fzf-url: no URLs found"
+  exit 0
+fi
+
+custom_open="$open_cmd"
+_copy_cmd="$(get_copy_cmd "$copy_cmd")"
+
+selection="$(select_url_rows <<<"$items" || true)"
+[ -n "$selection" ] || exit 0
+
+printf '%s\n' "$selection" | awk '{print $2}' |
+  while read -r chosen; do
+    open_url "$chosen" &>"/tmp/tmux-$(id -u)-fzf-url.log"
+  done

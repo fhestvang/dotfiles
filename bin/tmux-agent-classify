@@ -4,18 +4,30 @@
 Given a transcript path (a JSONL file, or a directory whose newest *.jsonl is
 used), inspect the LAST assistant message and decide:
 
-    blocked  -> the agent ended by asking the user a question / needs help
-    done     -> the agent finished normally
+    blocked  -> the agent ended by asking the user / needs help  (renders "?")
+    done     -> the agent finished normally                       (renders "!")
 
-The signal is intentionally simple and uniform across harnesses: if the last
-assistant message ends with a question mark (ignoring trailing markdown and
-closing punctuation), the agent is waiting on the user. Anything unparseable
-falls back to "done" so the indicator never gets stuck on "?".
+A turn is "blocked" ONLY when the last assistant message invokes a tool that, by
+definition, waits for the user -- e.g. Claude Code's ExitPlanMode (plan approval)
+or AskUserQuestion. That is a structural, unambiguous signal. (Codex/pi don't
+emit these tools, so the check is simply inert there.)
 
-Handles three transcript shapes:
+We deliberately do NOT treat "the message ends with a question mark" as blocked:
+agents routinely finish the work and sign off with an optional follow-up offer
+("want me to also...?"), which is *done*, not stuck. A real blocking question and
+a polite closing question are textually indistinguishable, so that heuristic only
+produced false "?"s on finished sessions.
+
+Anything else, or anything unparseable, is "done" so the indicator never gets
+stuck on "?". The live "needs-you" moments that happen mid-turn (tool-permission
+/ approval prompts) are surfaced by each runtime's own hooks (Claude
+Notification, Codex PermissionRequest), not here.
+
+Handles two transcript shapes:
   - Claude Code / pi.dev : {"type": "assistant"|"message",
                             "message": {"role": "assistant",
-                                        "content": [{"type": "text", ...}]}}
+                                        "content": [{"type": "text", ...},
+                                                    {"type": "tool_use", ...}]}}
   - Codex                : {"payload": {"type": "agent_message"|"message", ...}}
 """
 
@@ -25,11 +37,20 @@ import os
 import sys
 
 
+# Tool names whose presence in the final assistant message mean "waiting on the
+# user". Compared after stripping to alphanumerics, case-insensitively.
+BLOCKING_TOOLS = {"exitplanmode", "askuserquestion"}
+
+
 def newest_jsonl(directory):
     files = glob.glob(os.path.join(directory, "**", "*.jsonl"), recursive=True)
     if not files:
         return None
     return max(files, key=os.path.getmtime)
+
+
+def _norm(name):
+    return "".join(ch for ch in name.lower() if ch.isalnum())
 
 
 def extract_text(content):
@@ -46,8 +67,23 @@ def extract_text(content):
     return ""
 
 
-def last_assistant_text(path):
-    last = ""
+def has_blocking_tool(content):
+    if not isinstance(content, list):
+        return False
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") in ("tool_use", "tool_call", "function_call"):
+            name = block.get("name")
+            if isinstance(name, str) and _norm(name) in BLOCKING_TOOLS:
+                return True
+    return False
+
+
+def last_assistant(path):
+    """Return (text, blocked_by_tool) for the newest assistant message."""
+    last_text = ""
+    last_block = False
     try:
         with open(path, "r", errors="ignore") as handle:
             for line in handle:
@@ -68,35 +104,29 @@ def last_assistant_text(path):
                     if ptype == "agent_message":
                         text = payload.get("message") or payload.get("text") or ""
                         if isinstance(text, str) and text.strip():
-                            last = text
+                            last_text, last_block = text, False
                     elif ptype == "message" and payload.get("role") == "assistant":
-                        text = extract_text(payload.get("content"))
-                        if text.strip():
-                            last = text
+                        content = payload.get("content")
+                        text = extract_text(content)
+                        block = has_blocking_tool(content)
+                        if text.strip() or block:
+                            last_text, last_block = text, block
                     continue
 
                 # Claude Code / pi.dev format.
                 message = obj.get("message")
-                if isinstance(message, dict) and message.get("role") == "assistant":
-                    text = extract_text(message.get("content"))
-                    if text.strip():
-                        last = text
-                elif obj.get("type") == "assistant" and isinstance(message, dict):
-                    text = extract_text(message.get("content"))
-                    if text.strip():
-                        last = text
+                is_assistant = (
+                    isinstance(message, dict) and message.get("role") == "assistant"
+                ) or (obj.get("type") == "assistant" and isinstance(message, dict))
+                if is_assistant:
+                    content = message.get("content")
+                    text = extract_text(content)
+                    block = has_blocking_tool(content)
+                    if text.strip() or block:
+                        last_text, last_block = text, block
     except Exception:
-        return ""
-    return last
-
-
-def is_question(text):
-    if not text:
-        return False
-    # Drop trailing whitespace, then any closing markdown / punctuation that can
-    # sit after the real final character (e.g. `...help?` or "...right?").
-    stripped = text.rstrip().rstrip(" \t\r\n*_`\"')]}>")
-    return stripped.endswith("?")
+        return ("", False)
+    return (last_text, last_block)
 
 
 def main():
@@ -108,7 +138,8 @@ def main():
     if not path or not os.path.isfile(path):
         print("done")
         return
-    print("blocked" if is_question(last_assistant_text(path)) else "done")
+    _, blocked_tool = last_assistant(path)
+    print("blocked" if blocked_tool else "done")
 
 
 if __name__ == "__main__":

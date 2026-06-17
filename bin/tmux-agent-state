@@ -6,7 +6,7 @@ action="${1:-}"
 target="${2:-${TMUX_PANE:-}}"
 
 case "$action" in
-  working|idle|blocked|done|seen|release) ;;
+  working|idle|blocked|question|waiting|help|done|seen|release) ;;
   *) exit 0 ;;
 esac
 
@@ -57,7 +57,7 @@ case "$action" in
   working)
     set_state working
     ;;
-  blocked)
+  blocked|question|waiting|help)
     set_state blocked
     ring_terminal_bell
     ;;

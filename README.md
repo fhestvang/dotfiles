@@ -255,8 +255,8 @@ Prompt:
 
 Navigation:
 
-- `z <name>` jumps to a directory you use often.
-- `zi` opens an interactive `zoxide` picker.
+- `cd <name>` jumps to a directory you use often (`zoxide` replaces `cd`).
+- `cdi` opens an interactive `zoxide` picker.
 - `Alt-C` opens an `fzf` directory picker.
 - `Ctrl-T` opens an `fzf` file picker.
 - In tmux, the prefix is `Alt-a`.

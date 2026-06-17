@@ -54,6 +54,15 @@ if [[ -o interactive ]]; then
   zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
   zstyle ':completion:*' verbose yes
 
+  # vim navigation inside the completion menu (applies to carapace too, since
+  # carapace only supplies candidates; the menu itself is zsh's menuselect).
+  zmodload zsh/complist
+  bindkey -M menuselect 'h' vi-backward-char
+  bindkey -M menuselect 'j' vi-down-line-or-history
+  bindkey -M menuselect 'k' vi-up-line-or-history
+  bindkey -M menuselect 'l' vi-forward-char
+  bindkey -M menuselect '^[' undo            # Esc backs out of the menu
+
   bindkey -v
   export KEYTIMEOUT=1
   autoload -Uz up-line-or-beginning-search down-line-or-beginning-search
@@ -130,3 +139,34 @@ fi
 # bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
+
+# Omnigent: stop the build-age update nag (0.1.0 is latest; no newer release)
+export OMNIGENT_NO_UPDATE_CHECK=1
+
+# Scaleway CLI: inject API keys from OpenBao at call time, never from disk.
+# config.yaml holds only non-secret defaults; the access/secret key live at
+# kv/projects/scaleway/cli in Bao. Auth-free subcommands skip Bao so opening a
+# terminal (and the autocomplete eval below) never needs Bao reachable.
+scw() {
+  case "$1" in
+    autocomplete|version|help|--help|-h|config|"")
+      command scw "$@" ;;
+    *)
+      local _ak _sk
+      _ak=$(bao kv get -field=access_key kv/projects/scaleway/cli 2>/dev/null) \
+        && _sk=$(bao kv get -field=secret_key kv/projects/scaleway/cli 2>/dev/null) \
+        || { print -u2 "scw: could not read creds from Bao (sealed or unauthenticated?)"; return 1; }
+      SCW_ACCESS_KEY=$_ak SCW_SECRET_KEY=$_sk command scw "$@" ;;
+  esac
+}
+
+# Scaleway CLI autocomplete initialization.
+eval "$(scw autocomplete script shell=zsh)"
+
+# carapace-bin: multi-shell completions (https://carapace.sh)
+export CARAPACE_BRIDGES='zsh,fish,bash,inshellisense'
+# carapace filters case-sensitively itself, ignoring zsh's matcher-list, so
+# lowercase input (`nvim re`) misses uppercase files (README.md) without this.
+export CARAPACE_MATCH=1
+zstyle ':completion:*' format $'\e[2;37mCompleting %d\e[m'
+source <(carapace _carapace)

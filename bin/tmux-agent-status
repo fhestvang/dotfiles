@@ -14,7 +14,7 @@ action="${1:-}"
 payload="$(cat 2>/dev/null || true)"
 
 case "$action" in
-  working|idle|blocked|release) ;;
+  working|idle|blocked|question|notify|release) ;;
   *) exit 0 ;;
 esac
 
@@ -61,6 +61,21 @@ if action == "idle" and (event_key == "sessionstart" or source == "clear"):
 elif action == "working" and prompt in {"clear", "/clear", "clear session", "/clear session"}:
     action = "release"
 
+# The notify action is the Claude Notification entry point. That event fires for
+# BOTH a genuine permission or approval prompt AND the passive waiting-for-input
+# idle nudge. Mapping the nudge to a block would light up every finished session.
+# So promote notify to a real block only on a permission-ish message; anything
+# else, including an empty payload, becomes noop and leaves the existing glyph
+# untouched. Codex sends question directly and always blocks.
+if action == "notify":
+    message = first_string("message", "body", "notification", "text").lower()
+    if any(k in message for k in (
+        "permission", "approve", "approval", "needs your", "grant", "allow",
+    )):
+        action = "question"
+    else:
+        action = "noop"
+
 # When a turn ends (idle == Stop) surface the transcript path so the caller can
 # classify whether the agent finished (done) or left a question (blocked).
 transcript = first_string("transcript_path", "transcriptPath", "transcript") if action == "idle" else ""
@@ -72,8 +87,11 @@ print(transcript)
   mapped_action="$(printf '%s\n' "$mapped" | head -n 1)"
   transcript="$(printf '%s\n' "$mapped" | sed -n '2p')"
   case "$mapped_action" in
-    working|idle|blocked|release) action="$mapped_action" ;;
+    working|idle|blocked|question|noop|release) action="$mapped_action" ;;
   esac
+
+  # A filtered-out Notification (idle nudge, not a real block) leaves state as-is.
+  [ "$action" = noop ] && exit 0
 
   # On turn end, ask the classifier whether the agent is waiting on the user;
   # if so switch to "blocked" (rendered as "?" in the tmux status bar).

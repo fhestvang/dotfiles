@@ -556,7 +556,7 @@ install_stow_packages() {
     prepare_stow_target "$target"
   done
 
-  stow -d "$DOTFILES_DIR" -t "$HOME" --no-folding "${STOW_PACKAGES[@]}"
+  stow -d "$DOTFILES_DIR" -t "$HOME" --restow --no-folding "${STOW_PACKAGES[@]}"
 }
 
 install_bin_scripts() {

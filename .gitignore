@@ -1,0 +1,7 @@
+# Agent telemetry / audit logs — kept local per AGENTS.md, never versioned here
+.claude/
+**/.claude/
+
+# Python build artifacts
+__pycache__/
+*.pyc

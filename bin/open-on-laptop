@@ -4,7 +4,7 @@ set -euo pipefail
 target="${OPEN_ON_LAPTOP_SSH:-laptop}"
 mode="${OPEN_ON_LAPTOP_MODE:---new-window}"
 log_file="${OPEN_ON_LAPTOP_LOG:-$HOME/.cache/open-on-laptop.log}"
-method="${OPEN_ON_LAPTOP_METHOD:-task}"
+method="${OPEN_ON_LAPTOP_METHOD:-start}"
 
 urls=("$@")
 if [ "${#urls[@]}" -eq 0 ]; then
@@ -31,6 +31,28 @@ log() {
   printf '%s %s\n' "$(date -Is)" "$*" >>"$log_file"
 }
 
+# Fast path (default): hand each URL to the laptop's default browser via
+# `cmd /c start`, which opens a tab in the already-running Chrome (~0.1s vs the
+# ~1-2s scheduled-task dispatch). Set OPEN_ON_LAPTOP_METHOD=task to force the
+# scheduled-task path (only needed if no browser is running / SSH session-0).
+if [ "$method" = "start" ]; then
+  log "target=$target method=start urls=${urls[*]}"
+  rc=0
+  for url in "${urls[@]}"; do
+    safe="${url//\"/}"
+    if ! ssh -o BatchMode=yes "$target" "cmd.exe /c start \"\" \"$safe\""; then
+      rc=1
+    fi
+  done
+  if [ "$rc" -eq 0 ]; then
+    log "ok target=$target method=start"
+    exit 0
+  fi
+  log "failed target=$target method=start; falling back to scheduled task"
+  notify "open-on-laptop: cmd start failed; trying scheduled task"
+  method="task"
+fi
+
 encoded_urls=""
 for url in "${urls[@]}"; do
   encoded_urls="${encoded_urls}  '$(printf '%s' "$url" | base64 -w0)'\n"
@@ -50,11 +72,13 @@ if (\$method -eq 'task') {
   \$queuePath = Join-Path \$root 'urls.txt'
   Set-Content -Path \$queuePath -Value \$urlsBase64 -Encoding ASCII
   Start-ScheduledTask -TaskName 'SparkOpenUrl'
-  Start-Sleep -Milliseconds 800
-  \$remaining = @()
-  if (Test-Path \$queuePath) {
+  \$remaining = \$urlsBase64
+  for (\$i = 0; \$i -lt 20; \$i++) {
+    Start-Sleep -Milliseconds 60
+    if (-not (Test-Path \$queuePath)) { \$remaining = @(); break }
     \$remaining = Get-Content -Path \$queuePath -ErrorAction SilentlyContinue |
       Where-Object { -not [string]::IsNullOrWhiteSpace(\$_) }
+    if (-not \$remaining -or \$remaining.Count -eq 0) { break }
   }
   if (-not \$remaining -or \$remaining.Count -eq 0) {
     exit 0
@@ -79,7 +103,7 @@ foreach (\$encodedUrl in \$urlsBase64) {
     Start-Process -FilePath \$chrome -ArgumentList @(\$mode, \$url) | Out-Null
   }
 }
-Start-Sleep -Milliseconds 700
+Start-Sleep -Milliseconds 150
 try {
   \$shell = New-Object -ComObject WScript.Shell
   if (-not \$shell.AppActivate('Google Chrome')) {
