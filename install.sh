@@ -404,7 +404,7 @@ report_tool_health() {
   # are not falsely reported missing.
   local PATH="$HOME/.local/bin:$HOME/bin:$HOME/.cargo/bin:$HOME/.local/share/fzf/bin:$PATH"
   local tool missing=()
-  for tool in zsh starship fzf zoxide eza rg fd bat atuin mise direnv tmux git bao linear-tui vkv; do
+  for tool in zsh starship fzf zoxide eza rg fd bat atuin mise direnv tmux git bao linear-tui vkv chezmoi; do
     have "$tool" || missing+=("$tool")
   done
   if [ "${#missing[@]}" -eq 0 ]; then
@@ -689,6 +689,7 @@ install_packages() {
   install_bao_user
   install_linear_tui_user
   install_vkv_user
+  install_chezmoi_user
 }
 
 ensure_stow() {
@@ -797,16 +798,20 @@ ensure_ssh_include() {
   fi
 }
 
-install_git_hooks() {
-  local hook_src="$DOTFILES_DIR/hooks/post-commit"
-  local hook_dst="$DOTFILES_DIR/.git/hooks/post-commit"
-
-  [ -f "$hook_src" ] || return 0
-  [ -d "$DOTFILES_DIR/.git/hooks" ] || return 0
-
-  chmod +x "$hook_src"
-  ln -sfn "$hook_src" "$hook_dst"
-  echo "hook: post-commit -> $hook_src"
+install_chezmoi_user() {
+  # chezmoi is the fleet's convergence manager (pull model). A box bootstrapped
+  # by install.sh gets it too; `chezmoi init --apply <repo>` then takes over and
+  # `chezmoi update` (cron) keeps it converged. This replaced the old push
+  # fan-out (the retired hooks/post-commit + bin/dotfiles-fleet-sync).
+  if have chezmoi; then
+    return
+  fi
+  if have curl; then
+    sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$HOME/.local/bin" \
+      || echo "skip: chezmoi install failed"
+  else
+    echo "skip: curl required for user-local chezmoi install"
+  fi
 }
 
 if [ "$INSTALL_PACKAGES" -eq 1 ]; then
@@ -817,7 +822,6 @@ ensure_ssh_include
 install_zsh_plugins
 install_stow_packages
 install_bin_scripts
-install_git_hooks
 install_wezterm_config
 install_agent_runtime_configs
 install_tmux_plugins
