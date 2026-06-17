@@ -4,7 +4,7 @@ set -euo pipefail
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_ROOT="${DOTFILES_BACKUP_DIR:-$HOME/.dotfiles-backup}"
 BACKUP_DIR="$BACKUP_ROOT/$(date +%Y%m%d-%H%M%S)"
-STOW_PACKAGES=(bash zsh git readline tmux starship atuin ghostty wezterm ssh)
+STOW_PACKAGES=()  # retired: dotfiles content now managed by chezmoi
 MANAGED_BIN_DIR="$HOME/bin"
 STOW_TARGETS=(
   "$HOME/.bashrc"
