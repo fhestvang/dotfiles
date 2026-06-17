@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Refresh ~/.vault-token via OpenBao AppRole login, using the role_id/secret_id
+# in ~/.config/bao/approle. Run this when the fleet's read-only token has expired
+# (the role issues a 30-day periodic token; `bao token renew` extends a still-
+# valid one, this re-logins a dead one). Standard AppRole consumer flow — this
+# script holds no secrets itself.
+set -euo pipefail
+
+: "${BAO_ADDR:=https://bao.olm-hops.ts.net}"
+export BAO_ADDR
+
+creds="$HOME/.config/bao/approle"
+if [ ! -r "$creds" ]; then
+  echo "bao-relogin: no $creds (AppRole creds not provisioned on this host)" >&2
+  exit 1
+fi
+# shellcheck disable=SC1090
+. "$creds"
+
+token="$(bao write -field=token auth/approle/login \
+  role_id="$VAULT_ROLE_ID" secret_id="$VAULT_SECRET_ID")"
+
+umask 077
+printf '%s' "$token" > "$HOME/.vault-token"
+echo "bao-relogin: refreshed ~/.vault-token"

@@ -128,19 +128,25 @@ tailnet hosts (e.g. Scaleway VPCs).
 
 ## Linear (Idea Vault)
 
-`linear-tui` (roeyazroel/linear-tui) is installed fleet-wide by `install.sh` from
-its GitHub release. It authenticates with `LINEAR_API_KEY`, injected at launch by
-a wrapper in `shell/common.sh` in this order: an exported env var, then OpenBao
-(`kv/projects/linear`, field `api_key`), then `~/.config/linear-tui/env`.
+`linear-tui` (roeyazroel/linear-tui) is installed fleet-wide by `install.sh`. It
+authenticates with `LINEAR_API_KEY`, injected at launch by a wrapper in
+`shell/common.sh` in this order: an exported env var, then OpenBao
+(`kv/projects/linear`, field `api_key`), then a local `~/.config/linear-tui/env`.
 
-Bao is reachable from Spark but not from the fleet, so the key is **materialized**
-to the fleet with `bin/dotfiles-fleet-linear-key`: it reads the key from Bao and
-writes a `0600 ~/.config/linear-tui/env` on each host (over ssh stdin, never in
-argv). Bao stays the source of truth; re-run to rotate. Add the key once with:
+OpenBao is now reachable from **every** box (the tailnet ACL grants `tag:tiny ->
+svc:bao`), so the wrapper reads the key from Bao at call time everywhere — no
+per-box materialization. Bao auth on the fleet uses a scoped **read-only**
+AppRole token in `~/.vault-token`; `bin/bao-relogin` refreshes it from the
+AppRole creds in `~/.config/bao/approle`. `BAO_ADDR` defaults via `common.sh`.
+
+Rotation is just (Bao is the single source of truth; no propagation step):
 
 ```sh
-bao kv put kv/projects/linear api_key=lin_api_...
+bao kv patch kv/projects/linear api_key=lin_api_...   # or the OpenBao UI
 ```
+
+(The old push-materialize helper `dotfiles-fleet-linear-key` was retired once the
+fleet could reach Bao directly.)
 
 ## Agent Runtime Surface
 

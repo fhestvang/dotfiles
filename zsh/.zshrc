@@ -145,19 +145,25 @@ export OMNIGENT_NO_UPDATE_CHECK=1
 
 # Scaleway CLI: inject API keys from OpenBao at call time, never from disk.
 # config.yaml holds only non-secret defaults; the access/secret key live at
-# kv/projects/scaleway/cli in Bao. Auth-free subcommands skip Bao so opening a
-# terminal (and the autocomplete eval below) never needs Bao reachable.
+# kv/projects/scaleway/cli in Bao.
+#
+# Bao is skipped only for paths that genuinely need no auth: `autocomplete
+# script`/`install` (run at shell startup), version, help, and config. The
+# DYNAMIC value completion `autocomplete complete` is NOT skipped: it calls the
+# API to list zones/types/images (e.g. tab-completing a GPU type), so it needs
+# creds like any other command. Skipping it broke GPU/type tab-completion.
 scw() {
-  case "$1" in
-    autocomplete|version|help|--help|-h|config|"")
-      command scw "$@" ;;
-    *)
-      local _ak _sk
-      _ak=$(bao kv get -field=access_key kv/projects/scaleway/cli 2>/dev/null) \
-        && _sk=$(bao kv get -field=secret_key kv/projects/scaleway/cli 2>/dev/null) \
-        || { print -u2 "scw: could not read creds from Bao (sealed or unauthenticated?)"; return 1; }
-      SCW_ACCESS_KEY=$_ak SCW_SECRET_KEY=$_sk command scw "$@" ;;
-  esac
+  if [[ ( "$1" == autocomplete && "$2" != complete ) \
+        || "$1" == version || "$1" == help || "$1" == --help \
+        || "$1" == -h || "$1" == config || -z "$1" ]]; then
+    command scw "$@"
+    return
+  fi
+  local _ak _sk
+  _ak=$(bao kv get -field=access_key kv/projects/scaleway/cli 2>/dev/null) \
+    && _sk=$(bao kv get -field=secret_key kv/projects/scaleway/cli 2>/dev/null) \
+    || { print -u2 "scw: could not read creds from Bao (sealed or unauthenticated?)"; return 1; }
+  SCW_ACCESS_KEY=$_ak SCW_SECRET_KEY=$_sk command scw "$@"
 }
 
 # Scaleway CLI autocomplete initialization (only when the CLI binary is present;
