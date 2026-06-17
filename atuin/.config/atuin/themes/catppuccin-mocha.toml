@@ -1,0 +1,16 @@
+[theme]
+name = "catppuccin-mocha"
+parent = "default"
+
+# Catppuccin Mocha. atuin maps colours to semantic roles, not UI elements, so
+# this keeps the search line cohesive instead of the default red/green mix.
+[colors]
+Base = "#cdd6f4"        # default foreground (commands)
+Title = "#cba6f7"       # headers / accents (mauve)
+Important = "#f5c2e7"   # emphasised (pink)
+Annotation = "#9399b2"  # times / supporting text (subtext0)
+Muted = "#6c7086"       # low-contrast (overlay0)
+Guidance = "#585b70"    # help/context (surface2)
+AlertInfo = "#a6e3a1"   # green
+AlertWarn = "#f9e2af"   # yellow
+AlertError = "#f38ba8"  # red
