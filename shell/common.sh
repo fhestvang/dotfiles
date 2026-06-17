@@ -1,5 +1,18 @@
 # Shared interactive shell configuration for Bash and Zsh.
 
+# Fall back to C.UTF-8 when the inherited locale isn't generated on this host.
+# Minimal cloud images and Raspberry Pi OS often lack en_US.UTF-8, which the SSH
+# client forwards via LC_*; that makes every tool warn "cannot change locale".
+# C.UTF-8 is built into glibc, so this needs no locale-gen or sudo, and it only
+# triggers when the active locale is actually broken (so Spark/laptop keep
+# theirs). Note: this fixes child processes and the rest of the session, not the
+# login-shell banner — that needs a valid locale in the env before login (see
+# the SSH SetEnv approach for fleet hosts).
+if command -v locale >/dev/null 2>&1 && locale 2>&1 | grep -qiE 'cannot (set|change) locale'; then
+  unset LANGUAGE LC_CTYPE LC_MESSAGES LC_COLLATE LC_NUMERIC LC_TIME LC_MONETARY LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT LC_IDENTIFICATION
+  export LANG=C.UTF-8 LC_ALL=C.UTF-8
+fi
+
 if [ -r "$HOME/github/dotfiles/shell/wslg-env.sh" ]; then
   . "$HOME/github/dotfiles/shell/wslg-env.sh"
 fi

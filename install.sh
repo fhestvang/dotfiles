@@ -282,6 +282,25 @@ install_apt_user_tools() {
   install_apt_user_binary fd-find usr/bin/fdfind fdfind fd
   install_apt_user_binary ripgrep usr/bin/rg rg
   install_apt_user_binary bat usr/bin/batcat batcat bat
+  # unzip is a hard dependency of install_yazi_user; pull it user-local so yazi
+  # is not silently skipped on minimal images that lack it.
+  install_apt_user_binary unzip usr/bin/unzip unzip
+}
+
+report_tool_health() {
+  # Surface partial failures instead of always printing a cheerful "done".
+  # Mirror the interactive PATH so tools that live outside ~/.local/bin (fzf)
+  # are not falsely reported missing.
+  local PATH="$HOME/.local/bin:$HOME/bin:$HOME/.cargo/bin:$HOME/.local/share/fzf/bin:$PATH"
+  local tool missing=()
+  for tool in zsh starship fzf zoxide eza rg fd bat atuin mise direnv tmux git; do
+    have "$tool" || missing+=("$tool")
+  done
+  if [ "${#missing[@]}" -eq 0 ]; then
+    echo "health: all expected tools resolve"
+  else
+    echo "health: MISSING -> ${missing[*]}"
+  fi
 }
 
 install_mise_user() {
@@ -676,4 +695,5 @@ if [ "$AUTO_ZSH" -eq 1 ]; then
   echo "ok: enabled Bash-to-Zsh handoff with $HOME/.dotfiles-auto-zsh"
 fi
 
+report_tool_health
 echo "done"
