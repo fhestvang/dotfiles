@@ -160,8 +160,12 @@ scw() {
   esac
 }
 
-# Scaleway CLI autocomplete initialization.
-eval "$(scw autocomplete script shell=zsh)"
+# Scaleway CLI autocomplete initialization (only when the CLI binary is present;
+# $+commands checks for an external command and ignores the wrapper function
+# above, which `command -v` would otherwise match on machines without scw).
+if (( $+commands[scw] )); then
+  eval "$(scw autocomplete script shell=zsh)"
+fi
 
 # carapace-bin: multi-shell completions (https://carapace.sh)
 export CARAPACE_BRIDGES='zsh,fish,bash,inshellisense'
@@ -169,4 +173,6 @@ export CARAPACE_BRIDGES='zsh,fish,bash,inshellisense'
 # lowercase input (`nvim re`) misses uppercase files (README.md) without this.
 export CARAPACE_MATCH=1
 zstyle ':completion:*' format $'\e[2;37mCompleting %d\e[m'
-source <(carapace _carapace)
+if (( $+commands[carapace] )); then
+  source <(carapace _carapace)
+fi

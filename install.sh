@@ -227,8 +227,46 @@ install_apt_user_binary() {
   echo "installed: user-local $primary -> $HOME/.local/bin/$primary"
 }
 
+install_eza_user() {
+  # eza must actually run, not merely exist: the apt-extracted build is missing
+  # its libgit2 shared lib on bare machines. Reinstall from the self-contained
+  # GitHub release (musl static on x86_64, gnu on aarch64) when eza is absent or
+  # broken.
+  if have eza && eza --version >/dev/null 2>&1; then
+    return
+  fi
+
+  local target url tmp eza_bin
+  case "$(uname -m)" in
+    x86_64) target="x86_64-unknown-linux-musl" ;;
+    aarch64|arm64) target="aarch64-unknown-linux-gnu" ;;
+    *) echo "skip: unsupported eza architecture $(uname -m)"; return ;;
+  esac
+
+  url="$(github_latest_asset_url eza-community/eza "eza_$target[.]tar[.]gz$" || true)"
+  if [ -z "$url" ]; then
+    echo "skip: could not find eza release asset for $target"
+    return
+  fi
+
+  tmp="$(mktemp -d)"
+  if curl -fL "$url" -o "$tmp/eza.tar.gz" && tar -xzf "$tmp/eza.tar.gz" -C "$tmp"; then
+    eza_bin="$(find "$tmp" -type f -name eza -perm -u=x | head -n 1)"
+    if [ -n "$eza_bin" ]; then
+      mkdir -p "$HOME/.local/bin"
+      rm -f "$HOME/.local/bin/eza"
+      install -m 755 "$eza_bin" "$HOME/.local/bin/eza"
+      echo "installed: user-local eza -> $HOME/.local/bin/eza"
+    else
+      echo "skip: eza archive did not contain eza binary"
+    fi
+  else
+    echo "skip: eza download or extraction failed"
+  fi
+  rm -rf "$tmp"
+}
+
 install_apt_user_tools() {
-  install_apt_user_binary eza usr/bin/eza eza
   install_apt_user_binary direnv usr/bin/direnv direnv
   install_apt_user_binary fd-find usr/bin/fdfind fdfind fd
   install_apt_user_binary ripgrep usr/bin/rg rg
@@ -501,6 +539,7 @@ install_packages() {
   install_fzf_user
   install_zoxide_user
   install_apt_user_tools
+  install_eza_user
   install_mise_user
   install_yazi_user
   install_atuin_user

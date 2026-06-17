@@ -1,5 +1,19 @@
 # ~/.bashrc
 
+# Put user-local tools on PATH for *every* invocation, including non-interactive
+# `ssh host cmd` shells. Those read this file (sshd special-case) but hit the
+# interactivity guard below and return before common.sh can set PATH, so without
+# this a remote command can't find ~/.local/bin tools (zsh, eza, mise, starship).
+# Idempotent: skips dirs already on PATH, so it never double-prepends.
+for __dotfiles_bin in "$HOME/.local/bin" "$HOME/bin"; do
+  case ":$PATH:" in
+    *":$__dotfiles_bin:"*) ;;
+    *) [ -d "$__dotfiles_bin" ] && PATH="$__dotfiles_bin:$PATH" ;;
+  esac
+done
+unset __dotfiles_bin
+export PATH
+
 case $- in
   *i*) ;;
   *) return ;;
