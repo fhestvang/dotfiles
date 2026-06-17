@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Materialize the Linear API key from OpenBao to a 0600 ~/.config/linear-tui/env
+# on each fleet host. Bao isn't reachable from the fleet directly, so we read the
+# key once here (on a box with Bao access, e.g. spark) and push it out. Bao stays
+# the source of truth; re-run this to rotate. The linear-tui wrapper in
+# shell/common.sh reads ~/.config/linear-tui/env as a fallback after Bao.
+#
+# The key is sent over ssh stdin, never as a command argument (so it never
+# appears in the remote process list).
+#
+# Env:
+#   BAO_ADDR        defaults to https://bao.olm-hops.ts.net
+#   DOTFILES_FLEET  space-separated host list (default: eigil ingvild dicte pi3)
+set -uo pipefail
+
+: "${BAO_ADDR:=https://bao.olm-hops.ts.net}"
+export BAO_ADDR
+read -r -a FLEET <<<"${DOTFILES_FLEET:-eigil ingvild dicte pi3}"
+
+command -v bao >/dev/null 2>&1 || { echo "error: bao CLI not found here" >&2; exit 1; }
+
+key="$(bao kv get -field=api_key kv/projects/linear 2>/dev/null || true)"
+if [ -z "$key" ]; then
+  echo "error: could not read api_key from Bao (kv/projects/linear)." >&2
+  echo "       add it first:  bao kv put kv/projects/linear api_key=lin_api_..." >&2
+  exit 1
+fi
+
+rc=0
+for h in "${FLEET[@]}"; do
+  if printf 'LINEAR_API_KEY=%s\n' "$key" | ssh -o BatchMode=yes "$h" \
+      'umask 077; mkdir -p ~/.config/linear-tui && cat > ~/.config/linear-tui/env'; then
+    echo "ok:   $h"
+  else
+    echo "FAIL: $h" >&2
+    rc=1
+  fi
+done
+exit "$rc"
