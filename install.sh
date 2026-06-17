@@ -316,6 +316,42 @@ install_linear_tui_user() {
   rm -rf "$tmp"
 }
 
+install_vkv_user() {
+  # vkv (FalcoSuessgott/vkv) — recursive OpenBao/Vault KV browser + search, the
+  # thing the Bao web UI can't do. Go binary from the GitHub release.
+  if have vkv; then
+    return
+  fi
+
+  local a url tmp bin
+  case "$(uname -m)" in
+    x86_64) a="x86_64" ;;
+    aarch64|arm64) a="arm64" ;;
+    *) echo "skip: unsupported vkv architecture $(uname -m)"; return ;;
+  esac
+
+  url="$(github_latest_asset_url FalcoSuessgott/vkv "vkv_Linux_$a[.]tar[.]gz$" || true)"
+  if [ -z "$url" ]; then
+    echo "skip: could not find vkv release asset for Linux_$a"
+    return
+  fi
+
+  tmp="$(mktemp -d)"
+  if curl -fL "$url" -o "$tmp/vkv.tar.gz" && tar -xzf "$tmp/vkv.tar.gz" -C "$tmp"; then
+    bin="$(find "$tmp" -type f -name vkv -perm -u=x | head -n 1)"
+    if [ -n "$bin" ]; then
+      mkdir -p "$HOME/.local/bin"
+      install -m 755 "$bin" "$HOME/.local/bin/vkv"
+      echo "installed: user-local vkv -> $HOME/.local/bin/vkv"
+    else
+      echo "skip: vkv archive did not contain the binary"
+    fi
+  else
+    echo "skip: vkv download or extraction failed"
+  fi
+  rm -rf "$tmp"
+}
+
 install_apt_user_tools() {
   install_apt_user_binary direnv usr/bin/direnv direnv
   install_apt_user_binary fd-find usr/bin/fdfind fdfind fd
@@ -332,7 +368,7 @@ report_tool_health() {
   # are not falsely reported missing.
   local PATH="$HOME/.local/bin:$HOME/bin:$HOME/.cargo/bin:$HOME/.local/share/fzf/bin:$PATH"
   local tool missing=()
-  for tool in zsh starship fzf zoxide eza rg fd bat atuin mise direnv tmux git linear-tui; do
+  for tool in zsh starship fzf zoxide eza rg fd bat atuin mise direnv tmux git linear-tui vkv; do
     have "$tool" || missing+=("$tool")
   done
   if [ "${#missing[@]}" -eq 0 ]; then
@@ -615,6 +651,7 @@ install_packages() {
   install_yazi_user
   install_atuin_user
   install_linear_tui_user
+  install_vkv_user
 }
 
 ensure_stow() {

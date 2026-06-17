@@ -281,6 +281,13 @@ if command -v linear-tui >/dev/null 2>&1; then
   }
 fi
 
+# vkv: recursive OpenBao/Vault KV browser + search (what the Bao web UI can't do
+# — it only prefix-searches one level). Point it at Bao; it reads the token from
+# ~/.vault-token. Examples: `vkv export -p kv`  /  `vkv export -p kv --only-keys`.
+if command -v vkv >/dev/null 2>&1; then
+  vkv() { VAULT_ADDR="${BAO_ADDR:-https://bao.olm-hops.ts.net}" VKV_DISABLE_WARNING=true command vkv "$@"; }
+fi
+
 if dotfiles_have_linux eza; then
   alias ls='eza -l --icons --no-permissions --no-user --total-size --sort=size'
   alias l='eza -l --icons --git -a'
