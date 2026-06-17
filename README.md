@@ -112,6 +112,20 @@ To skip the fan-out for one commit, use `git commit --no-verify` is not enough
 (post-commit always runs); instead commit with the hook disabled:
 `git -c core.hooksPath=/dev/null commit ...`.
 
+## SSH config
+
+The top-level `~/.ssh/config` stays machine-local (it holds host-specific blocks
+like how Spark reaches the laptop). Shared SSH config lives in the `ssh` stow
+package as `~/.ssh/config.d/*.conf` fragments, pulled in by an
+`Include config.d/*.conf` line that `install.sh` (`ensure_ssh_include`) adds to
+the local config idempotently.
+
+`10-fleet.conf` carries the fleet aliases (`eigil`/`ingvild`/`dicte`/`pi3` over
+the tailnet, one block via `HostName %h.olm-hops.ts.net`) and a
+`SetEnv LC_ALL=C.UTF-8` block so login shells on boxes lacking `en_US.UTF-8`
+don't emit setlocale warnings. The `*.olm-hops.ts.net` glob auto-covers future
+tailnet hosts (e.g. Scaleway VPCs).
+
 ## Agent Runtime Surface
 
 Dotfiles is the machine bootstrap surface. It installs shell/editor config and,

@@ -4,7 +4,7 @@ set -euo pipefail
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_ROOT="${DOTFILES_BACKUP_DIR:-$HOME/.dotfiles-backup}"
 BACKUP_DIR="$BACKUP_ROOT/$(date +%Y%m%d-%H%M%S)"
-STOW_PACKAGES=(bash zsh git readline tmux starship atuin ghostty wezterm)
+STOW_PACKAGES=(bash zsh git readline tmux starship atuin ghostty wezterm ssh)
 MANAGED_BIN_DIR="$HOME/bin"
 STOW_TARGETS=(
   "$HOME/.bashrc"
@@ -22,6 +22,7 @@ STOW_TARGETS=(
   "$HOME/.config/wezterm/wezterm.lua"
   "$HOME/.config/wezterm/remote-image-paste.lua"
   "$HOME/.config/wezterm/codex-image-paste.ps1"
+  "$HOME/.ssh/config.d/10-fleet.conf"
 )
 INSTALL_PACKAGES=0
 SET_ZSH=0
@@ -656,6 +657,31 @@ install_bin_scripts() {
   done
 }
 
+ensure_ssh_include() {
+  # The dotfiles own ~/.ssh/config.d/*.conf (stow package: ssh), but the
+  # top-level ~/.ssh/config is machine-local (it holds host-specific blocks).
+  # Make sure that local config pulls in the shared fragments. Idempotent.
+  local ssh_dir="$HOME/.ssh"
+  local cfg="$ssh_dir/config"
+  local include_line="Include config.d/*.conf"
+
+  mkdir -p "$ssh_dir/config.d"
+  chmod 700 "$ssh_dir" "$ssh_dir/config.d" 2>/dev/null || true
+
+  if [ ! -e "$cfg" ]; then
+    printf '%s\n' "$include_line" >"$cfg"
+    chmod 600 "$cfg"
+    echo "ssh: created $cfg with config.d include"
+    return
+  fi
+
+  if ! grep -qxF "$include_line" "$cfg"; then
+    printf '%s\n\n%s\n' "$include_line" "$(cat "$cfg")" >"$cfg.dotfiles-tmp" \
+      && mv "$cfg.dotfiles-tmp" "$cfg"
+    echo "ssh: added config.d include to $cfg"
+  fi
+}
+
 install_git_hooks() {
   local hook_src="$DOTFILES_DIR/hooks/post-commit"
   local hook_dst="$DOTFILES_DIR/.git/hooks/post-commit"
@@ -672,6 +698,7 @@ if [ "$INSTALL_PACKAGES" -eq 1 ]; then
   install_packages
 fi
 
+ensure_ssh_include
 install_zsh_plugins
 install_stow_packages
 install_bin_scripts
