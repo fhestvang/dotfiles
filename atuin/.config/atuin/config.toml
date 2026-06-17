@@ -4,6 +4,12 @@ filter_mode = "global"
 workspaces = true
 secrets_filter = true
 enter_accept = false
+# vim-navigable history popup: opens in insert to type, Esc -> normal for j/k.
+keymap_mode = "vim-insert"
+# fleet-wide history via the hosted, end-to-end-encrypted sync server.
+auto_sync = true
+sync_frequency = "5m"
+sync_address = "https://api.atuin.sh"
 
 [sync]
 records = true

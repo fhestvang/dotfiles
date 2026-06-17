@@ -445,10 +445,13 @@ if dotfiles_have_linux fzf; then
 fi
 
 if dotfiles_have_linux atuin; then
+  # --disable-up-arrow: keep the up-arrow as the vi prefix-search bound in
+  # .zshrc. --disable-ai: leave `?` as vim reverse-search, not atuin AI.
+  # atuin takes Ctrl-R, rebound after fzf in .zshrc (fzf also grabs Ctrl-R).
   if [ -n "${ZSH_VERSION:-}" ]; then
-    eval "$(atuin init zsh)"
+    eval "$(atuin init zsh --disable-up-arrow --disable-ai)"
   else
-    eval "$(atuin init bash)"
+    eval "$(atuin init bash --disable-up-arrow --disable-ai)"
   fi
 fi
 

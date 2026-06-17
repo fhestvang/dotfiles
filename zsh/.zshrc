@@ -121,6 +121,15 @@ if command -v fzf >/dev/null 2>&1; then
   eval "$(fzf --zsh)"
 fi
 
+# atuin owns Ctrl-R for history search. It must bind after fzf (which also grabs
+# Ctrl-R via `fzf --zsh`). Up-arrow stays the vi prefix-search above; `?` stays
+# vim reverse-search. The atuin-search widget is defined by `atuin init` above.
+if command -v atuin >/dev/null 2>&1; then
+  bindkey '^r' atuin-search
+  bindkey -M viins '^r' atuin-search
+  bindkey -M vicmd '^r' atuin-search
+fi
+
 if [ -s "$HOME/.bun/_bun" ]; then
   . "$HOME/.bun/_bun"
 fi
