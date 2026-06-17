@@ -134,11 +134,22 @@ install_zsh_user_apt() {
 
   rm -rf "$tmp"
 
-  if [ -x "$zsh_root/bin/zsh" ]; then
-    ln -sfn "$zsh_root/bin/zsh" "$HOME/.local/bin/zsh"
+  # Debian usrmerge (e.g. Raspberry Pi OS) ships the binary at usr/bin/zsh;
+  # older layouts use bin/zsh. Link whichever the deb actually produced.
+  local zsh_bin=""
+  local cand
+  for cand in "$zsh_root/usr/bin/zsh" "$zsh_root/bin/zsh"; do
+    if [ -x "$cand" ]; then
+      zsh_bin="$cand"
+      break
+    fi
+  done
+
+  if [ -n "$zsh_bin" ]; then
+    ln -sfn "$zsh_bin" "$HOME/.local/bin/zsh"
     echo "installed: user-local zsh -> $HOME/.local/bin/zsh"
   else
-    echo "skip: user-local zsh package extraction did not produce $zsh_root/bin/zsh"
+    echo "skip: user-local zsh package extraction did not produce a zsh binary"
   fi
 }
 

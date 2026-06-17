@@ -16,7 +16,7 @@ set -uo pipefail
 
 SCRIPT="$(readlink -f "$0")"
 DOTFILES_DIR="$(cd "$(dirname "$SCRIPT")/.." && pwd)"
-read -r -a FLEET <<<"${DOTFILES_FLEET:-eigil ingvild dicte}"
+read -r -a FLEET <<<"${DOTFILES_FLEET:-eigil ingvild dicte pi3}"
 LOG_DIR="$HOME/.cache/dotfiles-fleet-sync"
 mkdir -p "$LOG_DIR"
 
