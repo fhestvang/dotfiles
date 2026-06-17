@@ -42,3 +42,10 @@ This repo has no active backlog. If real work queues up, adopt the FHH
 task-creation standard (GitHub Issues + triage labels + Sandcastle Issue
 Loop): `../fhh-toolkit/knowledge/playbooks/sandcastle-issue-loop.md`. Do not
 invent a local ticket or planning system.
+
+## Structure (post-Stow, 2026-06-18)
+
+Dotfile CONTENT is now chezmoi-managed (source: `~/github/fleet-provisioning/home/dot_*`),
+not Stow. This repo keeps only `install.sh`'s tool installers + the laptop's wezterm.
+Do NOT re-enable Stow in install.sh — it deletes chezmoi's files fleet-wide.
+Full agent reference: `fhh-toolkit/knowledge/playbooks/fleet-machine-structure.md`.
