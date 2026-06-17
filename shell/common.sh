@@ -25,6 +25,11 @@ export DOTFILES_MACHINE
 # from this shell). The systemd proxy sets this in its own env file as well.
 export HEADROOM_TELEMETRY=off
 
+# OpenBao endpoint — the host-independent Tailscale Service name (reachable from
+# every box once the tailnet ACL grants it). Lets bao/vkv and the scw/linear
+# wrappers find Bao without each caller hardcoding the address.
+export BAO_ADDR="${BAO_ADDR:-https://bao.olm-hops.ts.net}"
+
 dotfiles_is_spark() {
   [ "$DOTFILES_MACHINE" = "spark" ]
 }

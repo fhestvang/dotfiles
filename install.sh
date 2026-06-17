@@ -316,6 +316,42 @@ install_linear_tui_user() {
   rm -rf "$tmp"
 }
 
+install_bao_user() {
+  # OpenBao CLI — needed on every box that reads secrets from Bao (chezmoi
+  # secret rendering, the scw/linear wrappers). GitHub release binary.
+  if have bao; then
+    return
+  fi
+
+  local a url tmp bin
+  case "$(uname -m)" in
+    x86_64) a="x86_64" ;;
+    aarch64|arm64) a="arm64" ;;
+    *) echo "skip: unsupported bao architecture $(uname -m)"; return ;;
+  esac
+
+  url="$(github_latest_asset_url openbao/openbao "bao_[0-9][^_]*_Linux_$a[.]tar[.]gz$" || true)"
+  if [ -z "$url" ]; then
+    echo "skip: could not find bao release asset for Linux_$a"
+    return
+  fi
+
+  tmp="$(mktemp -d)"
+  if curl -fL "$url" -o "$tmp/bao.tar.gz" && tar -xzf "$tmp/bao.tar.gz" -C "$tmp"; then
+    bin="$(find "$tmp" -type f -name bao -perm -u=x | head -n 1)"
+    if [ -n "$bin" ]; then
+      mkdir -p "$HOME/.local/bin"
+      install -m 755 "$bin" "$HOME/.local/bin/bao"
+      echo "installed: user-local bao -> $HOME/.local/bin/bao"
+    else
+      echo "skip: bao archive did not contain the binary"
+    fi
+  else
+    echo "skip: bao download or extraction failed"
+  fi
+  rm -rf "$tmp"
+}
+
 install_vkv_user() {
   # vkv (FalcoSuessgott/vkv) — recursive OpenBao/Vault KV browser + search, the
   # thing the Bao web UI can't do. Go binary from the GitHub release.
@@ -368,7 +404,7 @@ report_tool_health() {
   # are not falsely reported missing.
   local PATH="$HOME/.local/bin:$HOME/bin:$HOME/.cargo/bin:$HOME/.local/share/fzf/bin:$PATH"
   local tool missing=()
-  for tool in zsh starship fzf zoxide eza rg fd bat atuin mise direnv tmux git linear-tui vkv; do
+  for tool in zsh starship fzf zoxide eza rg fd bat atuin mise direnv tmux git bao linear-tui vkv; do
     have "$tool" || missing+=("$tool")
   done
   if [ "${#missing[@]}" -eq 0 ]; then
@@ -650,6 +686,7 @@ install_packages() {
   install_mise_user
   install_yazi_user
   install_atuin_user
+  install_bao_user
   install_linear_tui_user
   install_vkv_user
 }
