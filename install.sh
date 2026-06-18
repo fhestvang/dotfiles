@@ -4,26 +4,6 @@ set -euo pipefail
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_ROOT="${DOTFILES_BACKUP_DIR:-$HOME/.dotfiles-backup}"
 BACKUP_DIR="$BACKUP_ROOT/$(date +%Y%m%d-%H%M%S)"
-STOW_PACKAGES=()  # retired: dotfiles content now managed by chezmoi
-MANAGED_BIN_DIR="$HOME/bin"
-STOW_TARGETS=(
-  "$HOME/.bashrc"
-  "$HOME/.bash_profile"
-  "$HOME/.bash_aliases"
-  "$HOME/.zshrc"
-  "$HOME/.zprofile"
-  "$HOME/.gitconfig"
-  "$HOME/.inputrc"
-  "$HOME/.tmux.conf"
-  "$HOME/.config/tmux/tmux.conf"
-  "$HOME/.config/starship.toml"
-  "$HOME/.config/atuin/config.toml"
-  "$HOME/.config/ghostty/config"
-  "$HOME/.config/wezterm/wezterm.lua"
-  "$HOME/.config/wezterm/remote-image-paste.lua"
-  "$HOME/.config/wezterm/codex-image-paste.ps1"
-  "$HOME/.ssh/config.d/10-fleet.conf"
-)
 INSTALL_PACKAGES=0
 SET_ZSH=0
 AUTO_ZSH=0
@@ -519,45 +499,6 @@ install_atuin_user() {
   rm -rf "$tmp"
 }
 
-install_stow_user_apt() {
-  if have stow; then
-    return
-  fi
-
-  if ! have apt-get || ! have dpkg-deb || ! have perl; then
-    echo "skip: user-local stow install needs apt-get, dpkg-deb, and perl"
-    return
-  fi
-
-  local tmp stow_root wrapper
-  tmp="$(mktemp -d)"
-  stow_root="$HOME/.local/opt/stow-ubuntu"
-  wrapper="$HOME/.local/bin/stow"
-  mkdir -p "$HOME/.local/bin" "$stow_root"
-
-  (
-    cd "$tmp"
-    apt-get download stow
-    for deb in ./*.deb; do
-      dpkg-deb -x "$deb" "$stow_root"
-    done
-  )
-
-  rm -rf "$tmp"
-
-  if [ -x "$stow_root/usr/bin/stow" ]; then
-    printf '%s\n' \
-      '#!/usr/bin/env bash' \
-      "export PERL5LIB=\"$stow_root/usr/share/perl5\${PERL5LIB:+:\$PERL5LIB}\"" \
-      "exec \"$stow_root/usr/bin/stow\" \"\$@\"" \
-      > "$wrapper"
-    chmod +x "$wrapper"
-    echo "installed: user-local stow -> $wrapper"
-  else
-    echo "skip: user-local stow package extraction did not produce $stow_root/usr/bin/stow"
-  fi
-}
-
 install_zsh_plugins() {
   local plugin_dir="$HOME/.local/share/zsh/plugins"
   mkdir -p "$plugin_dir"
@@ -662,23 +603,22 @@ install_packages() {
   if have apt-get; then
     if [ "$(id -u)" -eq 0 ]; then
       apt-get update
-      apt-get install -y zsh fzf zoxide tmux git curl stow direnv fd-find ripgrep bat
+      apt-get install -y zsh fzf zoxide tmux git curl direnv fd-find ripgrep bat
     elif sudo -n true 2>/dev/null; then
       sudo apt-get update
-      sudo apt-get install -y zsh fzf zoxide tmux git curl stow direnv fd-find ripgrep bat
+      sudo apt-get install -y zsh fzf zoxide tmux git curl direnv fd-find ripgrep bat
     else
       echo "skip: sudo requires a password in this session"
-      echo "run manually: sudo apt-get update && sudo apt-get install -y zsh fzf zoxide tmux git curl stow direnv fd-find ripgrep bat"
+      echo "run manually: sudo apt-get update && sudo apt-get install -y zsh fzf zoxide tmux git curl direnv fd-find ripgrep bat"
     fi
   elif have brew; then
-    brew install zsh fzf zoxide starship tmux git stow direnv fd ripgrep bat eza atuin yazi
+    brew install zsh fzf zoxide starship tmux git direnv fd ripgrep bat eza atuin yazi
   else
     echo "skip: no supported package manager found"
   fi
 
   install_starship_user
   install_zsh_user_apt
-  install_stow_user_apt
   install_fzf_user
   install_zoxide_user
   install_apt_user_tools
@@ -692,98 +632,9 @@ install_packages() {
   install_chezmoi_user
 }
 
-ensure_stow() {
-  if have stow; then
-    return
-  fi
-
-  install_stow_user_apt
-  if ! have stow; then
-    echo "error: GNU Stow is required; install stow or run ./install.sh --install-packages" >&2
-    exit 1
-  fi
-}
-
-prepare_stow_target() {
-  local target="$1"
-  local link_dest resolved
-
-  [ -e "$target" ] || [ -L "$target" ] || return 0
-
-  if [ -L "$target" ]; then
-    link_dest="$(readlink "$target")"
-    resolved="$(readlink -f "$target" 2>/dev/null || true)"
-
-    if [ -n "$resolved" ] && [ -e "$resolved" ]; then
-      case "$resolved" in
-        "$DOTFILES_DIR"/*)
-          return
-          ;;
-      esac
-    fi
-
-    case "$link_dest" in
-      "$DOTFILES_DIR"/*|*github/dotfiles/*)
-        rm "$target"
-        echo "unlink: stale managed link $target -> $link_dest"
-        return
-        ;;
-    esac
-  fi
-
-  backup_path "$target"
-}
-
-install_stow_packages() {
-  local target
-
-  # Stow retired: dotfiles content is managed by chezmoi. With no packages, the
-  # prepare_stow_target loop below would back up (move away) the chezmoi-managed
-  # files and stow would recreate nothing, deleting them every run. Skip wholly.
-  if [ "${#STOW_PACKAGES[@]}" -eq 0 ]; then
-    echo "stow retired: dotfiles managed by chezmoi; skipping stow"
-    return 0
-  fi
-
-  ensure_stow
-  for target in "${STOW_TARGETS[@]}"; do
-    prepare_stow_target "$target"
-  done
-
-  stow -d "$DOTFILES_DIR" -t "$HOME" --restow --no-folding "${STOW_PACKAGES[@]}"
-}
-
-install_bin_scripts() {
-  local source target resolved
-
-  mkdir -p "$MANAGED_BIN_DIR"
-  for source in "$DOTFILES_DIR"/bin/*; do
-    [ -f "$source" ] || continue
-    target="$MANAGED_BIN_DIR/$(basename "$source")"
-
-    if [ -L "$target" ]; then
-      resolved="$(readlink -f "$target" 2>/dev/null || true)"
-      if [ "$resolved" = "$source" ]; then
-        echo "ok: $target already managed"
-        continue
-      fi
-      backup_path "$target"
-    elif [ -e "$target" ]; then
-      if [ -f "$target" ] && cmp -s "$source" "$target"; then
-        rm "$target"
-      else
-        backup_path "$target"
-      fi
-    fi
-
-    ln -s "$source" "$target"
-    echo "link: $target -> $source"
-  done
-}
-
 ensure_ssh_include() {
-  # The dotfiles own ~/.ssh/config.d/*.conf (stow package: ssh), but the
-  # top-level ~/.ssh/config is machine-local (it holds host-specific blocks).
+  # chezmoi owns ~/.ssh/config.d/*.conf, but the top-level ~/.ssh/config is
+  # machine-local (it holds host-specific blocks).
   # Make sure that local config pulls in the shared fragments. Idempotent.
   local ssh_dir="$HOME/.ssh"
   local cfg="$ssh_dir/config"
@@ -828,8 +679,6 @@ fi
 
 ensure_ssh_include
 install_zsh_plugins
-install_stow_packages
-install_bin_scripts
 install_wezterm_config
 install_agent_runtime_configs
 install_tmux_plugins
