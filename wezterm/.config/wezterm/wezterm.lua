@@ -196,13 +196,44 @@ remote_image_paste.apply(config, {
   wsl_distro = wsl_distro,
   default_host = 'local',
   key = 'v',
-  mods = 'CTRL|SHIFT',
-})
-remote_image_paste.apply(config, {
-  wsl_distro = wsl_distro,
-  default_host = 'local',
-  key = 'v',
   mods = 'CTRL|ALT',
 })
+
+-- Ctrl+Shift+V is ALWAYS a plain text paste from the system clipboard. It is
+-- deliberately NOT routed through the image-paste helper, so a normal text
+-- paste can never be swallowed by that helper writing to stderr. (Ctrl+V stays
+-- the smart image-or-text paste above; Ctrl+Alt+V remains an image-paste alias.)
+table.insert(config.keys, {
+  key = 'v',
+  mods = 'CTRL|SHIFT',
+  action = wezterm.action.PasteFrom 'Clipboard',
+})
+
+-- Plain left-drag selects text and copies it to the system clipboard on release,
+-- even inside full-screen TUIs (Claude Code, tmux, etc.) that capture the mouse
+-- — so copying no longer requires holding Shift, in any pane. Tradeoff: apps
+-- stop receiving plain left-clicks (pane-focus/positioning via mouse); that's an
+-- accepted choice here in favor of copy that "just works". Wheel-scroll and
+-- Shift-click selection are unaffected. Wrapped in pcall so an unexpected API
+-- mismatch degrades to default Shift-drag instead of failing the whole config.
+pcall(function()
+  config.mouse_bindings = {
+    {
+      event = { Down = { streak = 1, button = 'Left' } },
+      mods = 'NONE',
+      action = wezterm.action.SelectTextAtMouseCursor 'Cell',
+    },
+    {
+      event = { Drag = { streak = 1, button = 'Left' } },
+      mods = 'NONE',
+      action = wezterm.action.ExtendSelectionToMouseCursor 'Cell',
+    },
+    {
+      event = { Up = { streak = 1, button = 'Left' } },
+      mods = 'NONE',
+      action = wezterm.action.CompleteSelection 'ClipboardAndPrimarySelection',
+    },
+  }
+end)
 
 return config
