@@ -9,6 +9,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# wezterm launches this helper with the pane's working directory, which under WSL is
+# a \\wsl.localhost\... UNC path. PowerShell then resolves absolute UNC destinations
+# (Copy-Item to \\wsl.localhost\Ubuntu\...) RELATIVE to that UNC location and mangles
+# them, so the copy silently lands at a phantom path. Anchor to a Windows drive so
+# UNC paths stay absolute.
+Set-Location -LiteralPath ([System.IO.Path]::GetTempPath())
+
 function Write-Failure {
   param([string]$Message)
   [Console]::Error.WriteLine($Message)
@@ -66,12 +73,35 @@ function Set-LastClipboardSequence {
   Set-Content -LiteralPath (Get-LastClipboardSequencePath) -Value $Sequence -NoNewline
 }
 
+function Get-LastImageHashPath {
+  Join-Path (Get-StateDir) "last-image.sha256"
+}
+
+function Get-LastImageHash {
+  $path = Get-LastImageHashPath
+  if (Test-Path -LiteralPath $path) {
+    return (Get-Content -LiteralPath $path -Raw).Trim().ToLowerInvariant()
+  }
+  $null
+}
+
+function Set-LastImageHash {
+  param([string]$Hash)
+  Set-Content -LiteralPath (Get-LastImageHashPath) -Value $Hash -NoNewline
+}
+
+function Get-FileSha256 {
+  param([string]$Path)
+  (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+}
+
 function Save-ClipboardImageAsPng {
   Add-Type -AssemblyName System.Windows.Forms
   Add-Type -AssemblyName System.Drawing
 
   $allowRepeat = $AllowRepeat -or $env:CODEX_IMAGE_PASTE_ALLOW_REPEAT -eq "1"
   $lastSequence = if ($allowRepeat) { $null } else { Get-LastClipboardSequence }
+  $lastImageHash = if ($allowRepeat) { $null } else { Get-LastImageHash }
   $lastError = $null
 
   for ($freshAttempt = 0; $freshAttempt -lt 10; $freshAttempt++) {
@@ -109,7 +139,18 @@ function Save-ClipboardImageAsPng {
       $image.Dispose()
     }
 
+    $imageHash = Get-FileSha256 $path
+    if ($lastImageHash -and $imageHash -eq $lastImageHash) {
+      Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+      if ($freshAttempt -eq 9) {
+        Write-Failure "clipboard image matches the last pasted screenshot; take a fresh screenshot and retry"
+      }
+      Start-Sleep -Milliseconds 150
+      continue
+    }
+
     Set-LastClipboardSequence "$sequence"
+    Set-LastImageHash "$imageHash"
     return $path
   }
 }

@@ -22,6 +22,18 @@ config.colors = {
     '#94e2d5',
     '#a6adc8',
   },
+  -- Fancy tab bar still draws a rounded tab "pill" at the top-left even with the
+  -- label blanked (format-tab-title). Its default bg is a darker scheme shade, so
+  -- the pill shows as a small rounded rectangle. Paint every tab slot the titlebar
+  -- bg so the pill is invisible; the integrated min/max/close buttons are unaffected.
+  tab_bar = {
+    background = '#1e1e2e',
+    active_tab = { bg_color = '#1e1e2e', fg_color = '#1e1e2e' },
+    inactive_tab = { bg_color = '#1e1e2e', fg_color = '#1e1e2e' },
+    inactive_tab_hover = { bg_color = '#1e1e2e', fg_color = '#1e1e2e' },
+    new_tab = { bg_color = '#1e1e2e', fg_color = '#1e1e2e' },
+    new_tab_hover = { bg_color = '#1e1e2e', fg_color = '#1e1e2e' },
+  },
 }
 
 local wsl_distro = 'Ubuntu'
@@ -29,6 +41,12 @@ local wsl_distro = 'Ubuntu'
 local shell_command = 'export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; shell="$(command -v zsh 2>/dev/null || command -v bash 2>/dev/null || printf /bin/sh)"; export SHELL="$shell"; exec "$shell" -l'
 local tmux_command = 'export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; shell="$(command -v zsh 2>/dev/null || command -v bash 2>/dev/null || printf /bin/sh)"; export SHELL="$shell"; if command -v tmux >/dev/null 2>&1; then base="${FHH_TMUX_BASE:-main}"; tmux -2 new-session -A -s "$base"; fi; exec "$shell" -l'
 local spark_context_prefix = "printf '\\033]1337;SetUserVar=FHH_HOST=c3Bhcms=\\a'; printf '\\033]1337;SetUserVar=FHH_IMAGE_PASTE_HOST=c3Bhcms=\\a'; "
+-- Tag local laptop panes so CTRL+V image paste saves into WSL here instead of
+-- falling through to default_host='spark'. base64: bG9jYWw= = 'local'. Without
+-- this, pasting in a local Claude session writes the screenshot to spark and the
+-- path typed into the terminal dangles. Spark panes set the spark marker above;
+-- the untagged 'WezTerm Spark' desktop shortcut still relies on default_host.
+local local_context_prefix = "printf '\\033]1337;SetUserVar=FHH_HOST=bG9jYWw=\\a'; printf '\\033]1337;SetUserVar=FHH_IMAGE_PASTE_HOST=bG9jYWw=\\a'; "
 
 local function wsl_command_args(...)
   return {
@@ -84,11 +102,31 @@ config.window_frame = {
   button_bg = '#1e1e2e',
   button_fg = '#cdd6f4',
 }
+-- Keep the integrated bar (so min/max/close survive) but blank the tab label.
+-- The left side normally shows the running program ('wslhost.exe', tmux, etc.);
+-- returning an empty title painted in the titlebar bg leaves only the buttons.
+wezterm.on('format-tab-title', function()
+  return {
+    { Background = { Color = '#1e1e2e' } },
+    { Text = '' },
+  }
+end)
+config.show_new_tab_button_in_tab_bar = false
+-- Removes the fancy tab bar's per-tab close 'x'. Only exists in newer/nightly
+-- WezTerm (post-20240203); on the stable build this key is unknown and a bare
+-- assignment would fail the WHOLE config, so guard it with pcall — it's a no-op
+-- on stable and takes effect once WezTerm is upgraded.
+pcall(function()
+  config.show_close_tab_button_in_tabs = false
+end)
 config.window_padding = {
   left = '4px',
   right = '4px',
   top = '4px',
-  bottom = 0,
+  -- Lift the tmux status line a few px off the very bottom edge. With
+  -- window_content_alignment vertical=Bottom the grid bottom-aligns to the top of
+  -- this padding, so the gap below the bar stays a clean constant strip.
+  bottom = '6px',
 }
 -- When the window height is not an exact multiple of cell height, WezTerm has
 -- leftover pixels outside the terminal grid. Keep the grid bottom-aligned so
@@ -115,12 +153,12 @@ config.command_palette_fg_color = '#cdd6f4'
 config.command_palette_font_size = 12.0
 config.command_palette_rows = 12
 
-config.default_prog = wsl_command_args('zsh', '-l')
+config.default_prog = wsl_bash_args(local_context_prefix .. 'exec zsh -l')
 
 config.launch_menu = {
   {
     label = 'Laptop shell',
-    args = wsl_command_args('zsh', '-l'),
+    args = wsl_bash_args(local_context_prefix .. 'exec zsh -l'),
   },
   {
     label = 'Spark shell',
@@ -128,7 +166,7 @@ config.launch_menu = {
   },
   {
     label = 'Laptop tmux',
-    args = wsl_bash_args(tmux_command),
+    args = wsl_bash_args(local_context_prefix .. tmux_command),
   },
   {
     label = 'Spark tmux',
@@ -143,25 +181,26 @@ config.launch_menu = {
 package.path = package.path .. ';' .. wezterm.config_dir .. '/?.lua'
 local remote_image_paste = require 'remote-image-paste'
 config.keys = config.keys or {}
--- default_host: panes only carry FHH_IMAGE_PASTE_HOST when opened through the
--- spark launch item, and a WezTerm restart drops it. Without a default the
--- helper falls back to 'local' and silently saves into WSL at the same path
--- string Spark would use, so pasted paths dangle. Agents live on spark.
+-- default_host: spark panes carry FHH_IMAGE_PASTE_HOST=spark and local panes carry
+-- =local (set via the launch prefixes). A WezTerm restart drops the per-pane var,
+-- leaving orphaned panes untagged. On this laptop, default those to 'local' so
+-- pasted screenshots land in WSL here; explicitly-tagged spark panes still upload
+-- to spark.
 remote_image_paste.apply(config, {
   wsl_distro = wsl_distro,
-  default_host = 'spark',
+  default_host = 'local',
   key = 'v',
   mods = 'CTRL',
 })
 remote_image_paste.apply(config, {
   wsl_distro = wsl_distro,
-  default_host = 'spark',
+  default_host = 'local',
   key = 'v',
   mods = 'CTRL|SHIFT',
 })
 remote_image_paste.apply(config, {
   wsl_distro = wsl_distro,
-  default_host = 'spark',
+  default_host = 'local',
   key = 'v',
   mods = 'CTRL|ALT',
 })
