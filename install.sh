@@ -235,7 +235,7 @@ install_eza_user() {
     *) echo "skip: unsupported eza architecture $(uname -m)"; return ;;
   esac
 
-  url="$(github_latest_asset_url eza-community/eza "eza_$target[.]tar[.]gz$" || true)"
+  url="$(github_latest_asset_url eza-community/eza "eza_${target}[.]tar[.]gz$" || true)"
   if [ -z "$url" ]; then
     echo "skip: could not find eza release asset for $target"
     return
@@ -274,7 +274,7 @@ install_linear_tui_user() {
     *) echo "skip: unsupported linear-tui architecture $(uname -m)"; return ;;
   esac
 
-  url="$(github_latest_asset_url roeyazroel/linear-tui "linux_$arch[.]tar[.]gz$" || true)"
+  url="$(github_latest_asset_url roeyazroel/linear-tui "linux_${arch}[.]tar[.]gz$" || true)"
   if [ -z "$url" ]; then
     echo "skip: could not find linear-tui release asset for linux_$arch"
     return
@@ -310,7 +310,7 @@ install_bao_user() {
     *) echo "skip: unsupported bao architecture $(uname -m)"; return ;;
   esac
 
-  url="$(github_latest_asset_url openbao/openbao "bao_[0-9][^_]*_Linux_$a[.]tar[.]gz$" || true)"
+  url="$(github_latest_asset_url openbao/openbao "bao_[0-9][^_]*_Linux_${a}[.]tar[.]gz$" || true)"
   if [ -z "$url" ]; then
     echo "skip: could not find bao release asset for Linux_$a"
     return
@@ -346,7 +346,7 @@ install_vkv_user() {
     *) echo "skip: unsupported vkv architecture $(uname -m)"; return ;;
   esac
 
-  url="$(github_latest_asset_url FalcoSuessgott/vkv "vkv_Linux_$a[.]tar[.]gz$" || true)"
+  url="$(github_latest_asset_url FalcoSuessgott/vkv "vkv_Linux_${a}[.]tar[.]gz$" || true)"
   if [ -z "$url" ]; then
     echo "skip: could not find vkv release asset for Linux_$a"
     return
@@ -441,7 +441,7 @@ install_yazi_user() {
     return
   fi
 
-  url="$(github_latest_asset_url sxyazi/yazi "yazi-$target[.]zip$" || true)"
+  url="$(github_latest_asset_url sxyazi/yazi "yazi-${target}[.]zip$" || true)"
   if [ -z "$url" ]; then
     echo "skip: could not find yazi release asset for $target"
     return
@@ -477,7 +477,7 @@ install_atuin_user() {
     *) echo "skip: unsupported atuin architecture $(uname -m)"; return ;;
   esac
 
-  url="$(github_latest_asset_url atuinsh/atuin "atuin-$target[.]tar[.]gz$" || true)"
+  url="$(github_latest_asset_url atuinsh/atuin "atuin-${target}[.]tar[.]gz$" || true)"
   if [ -z "$url" ]; then
     echo "skip: could not find atuin release asset for $target"
     return
