@@ -93,10 +93,10 @@ exec zsh -l
 ## Convergence (chezmoi, pull model)
 
 This repo is the worker; **chezmoi** is the convergence manager (source:
-`github.com/fhestvang/fleet-provisioning`). On each box:
+`github.com/fhestvang/platform-engineering`). On each box:
 
 ```sh
-chezmoi init --apply https://github.com/fhestvang/fleet-provisioning.git
+chezmoi init --apply https://github.com/fhestvang/platform-engineering.git
 ```
 
 chezmoi runs a `run_onchange` script that clones this repo and runs
