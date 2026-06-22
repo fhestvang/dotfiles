@@ -181,6 +181,15 @@ install_apt_user_binary() {
   shift 3
 
   if have "$primary"; then
+    local alias_name
+    for alias_name in "$@"; do
+      if ! have "$alias_name"; then
+        local primary_path
+        primary_path="$(command -v "$primary")"
+        mkdir -p "$HOME/.local/bin"
+        ln -sfn "$primary_path" "$HOME/.local/bin/$alias_name"
+      fi
+    done
     return
   fi
 
@@ -409,6 +418,11 @@ install_mise_user() {
   asset_pattern="mise-v[0-9][^/]*-linux-$arch$"
   url="$(github_latest_asset_url jdx/mise "$asset_pattern" || true)"
   if [ -z "$url" ]; then
+    if have curl; then
+      curl -fsSL https://mise.run | sh -s -- -y --bin-dir "$HOME/.local/bin" \
+        || echo "skip: mise install script failed"
+      return
+    fi
     echo "skip: could not find mise release asset for linux-$arch"
     return
   fi
