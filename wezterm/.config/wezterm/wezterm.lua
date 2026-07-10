@@ -40,7 +40,7 @@ local wsl_distro = 'Ubuntu'
 
 local shell_command = 'export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; shell="$(command -v zsh 2>/dev/null || command -v bash 2>/dev/null || printf /bin/sh)"; export SHELL="$shell"; exec "$shell" -l'
 local tmux_command = 'export PATH="$HOME/.local/bin:$HOME/bin:$PATH"; shell="$(command -v zsh 2>/dev/null || command -v bash 2>/dev/null || printf /bin/sh)"; export SHELL="$shell"; if command -v tmux >/dev/null 2>&1; then base="${FHH_TMUX_BASE:-main}"; tmux -2 new-session -A -s "$base"; fi; exec "$shell" -l'
-local spark_context_prefix = "printf '\\033]1337;SetUserVar=FHH_HOST=c3Bhcms=\\a'; printf '\\033]1337;SetUserVar=FHH_IMAGE_PASTE_HOST=c3Bhcms=\\a'; "
+local spark_context_prefix = "printf '\\033]1337;SetUserVar=FHH_HOST=c3Bhcms=\\a'; if command -v tailscale >/dev/null 2>&1 && command -v base64 >/dev/null 2>&1; then addr=\"$(tailscale ip -4 2>/dev/null | sed -n 1p)\"; if [ -n \"$addr\" ]; then addr_b64=\"$(printf \"%s\" \"$addr\" | base64 | tr -d \"\\r\\n\")\"; printf '\\033]1337;SetUserVar=FHH_HOST_ADDR=%s\\a' \"$addr_b64\"; fi; fi; printf '\\033]1337;SetUserVar=FHH_IMAGE_PASTE_HOST=c3Bhcms=\\a'; "
 -- Tag local laptop panes so CTRL+V image paste saves into WSL here instead of
 -- falling through to default_host='spark'. base64: bG9jYWw= = 'local'. Without
 -- this, pasting in a local Claude session writes the screenshot to spark and the
@@ -77,7 +77,7 @@ local function spark_args(command)
     '~',
     '--',
     'ssh',
-    '-t',
+    '-tt',
     'spark',
     spark_context_prefix .. command,
   }
@@ -102,6 +102,57 @@ config.window_frame = {
   button_bg = '#1e1e2e',
   button_fg = '#cdd6f4',
 }
+
+local machine_label_colors = {
+  laptop = '#89b4fa',
+  spark = '#f38ba8',
+  eigil = '#a6e3a1',
+  ingvild = '#f9e2af',
+  dicte = '#94e2d5',
+  pi3 = '#fab387',
+  scaleway = '#cba6f7',
+}
+
+local function wezterm_context(pane)
+  local user_vars = {}
+  if pane ~= nil then
+    local ok, vars = pcall(function()
+      return pane:get_user_vars()
+    end)
+    if ok and type(vars) == 'table' then
+      user_vars = vars
+    end
+  end
+
+  local host = user_vars.FHH_HOST or ''
+  if host == '' or host == 'local' then
+    host = 'laptop'
+  end
+
+  return {
+    host = host,
+    addr = user_vars.FHH_HOST_ADDR or '',
+    color = machine_label_colors[host] or '#cdd6f4',
+  }
+end
+
+wezterm.on('update-right-status', function(window, pane)
+  local context = wezterm_context(pane)
+  local cells = {
+    { Background = { Color = '#313244' } },
+    { Foreground = { Color = context.color } },
+    { Text = ' ' .. context.host },
+  }
+
+  if context.addr ~= '' then
+    table.insert(cells, { Foreground = { Color = '#bac2de' } })
+    table.insert(cells, { Text = ' ' .. context.addr })
+  end
+
+  table.insert(cells, { Text = ' ' })
+  window:set_right_status(wezterm.format(cells))
+end)
+
 -- Keep the integrated bar (so min/max/close survive) but blank the tab label.
 -- The left side normally shows the running program ('wslhost.exe', tmux, etc.);
 -- returning an empty title painted in the titlebar bg leaves only the buttons.
